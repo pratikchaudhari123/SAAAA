@@ -2,7 +2,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_protect
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
-from django.db import transaction, IntegrityError
+from django.db import transaction, IntegrityError, connection, DatabaseError
 import json
 from rest_framework import serializers, generics
 from rest_framework.decorators import api_view, permission_classes
@@ -32,7 +32,13 @@ def sign_out(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(request):
-    return JsonResponse({'service':'saaaa-api','status':'running'})
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+            cursor.fetchone()
+    except DatabaseError:
+        return JsonResponse({'service':'saaaa-api','status':'unhealthy','database':'unavailable'},status=503)
+    return JsonResponse({'service':'saaaa-api','status':'healthy','database':'connected'})
 @api_view(['GET'])
 def institutions(request):
     return JsonResponse({'institutions':list(Membership.objects.filter(user=request.user).values('institution__slug','institution__name','role'))})
@@ -56,7 +62,7 @@ class StudentList(generics.ListCreateAPIView):
             raise PermissionDenied()
         try:
             with transaction.atomic():
-                student = serializer.save(institution=member.institution)
+                student = serializer.save(institution=member.institution,status='Pending')
                 AuditEvent.objects.create(institution=member.institution,actor=self.request.user,action='student.create',target=student.student_id)
         except IntegrityError:
             raise ValidationError({'student_id':'Student ID already exists in this institution.'})
