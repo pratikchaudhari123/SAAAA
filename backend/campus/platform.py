@@ -6,7 +6,7 @@ from rest_framework import serializers
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
-from .models import Institution, Membership, Department, AcademicProgram, AcademicCourse, AcademicPeriod, Student, AttendanceEntry, FeeAccount, FeeReceipt, HostelBed, HostelCheck, AuditEvent
+from .models import Institution, Membership, Department, AcademicProgram, AcademicCourse, AcademicPeriod, Student, AttendanceEntry, FeeAccount, FeeReceipt, HostelBed, HostelCheck, AuditEvent, LectureSession, SessionAttendance, CourseExam
 
 class DepartmentInput(serializers.Serializer):
     code=serializers.SlugField(max_length=30)
@@ -99,8 +99,11 @@ def dashboard(request,slug):
     i=m.institution
     students=Student.objects.filter(institution=i)
     attendance=AttendanceEntry.objects.filter(student__institution=i,day=timezone.localdate())
+    lectures=LectureSession.objects.filter(offering__course__program__department__institution=i,starts__date=timezone.localdate())
+    recorded=SessionAttendance.objects.filter(session__in=lectures,enrollment__student__institution=i)
+    exam_rows=CourseExam.objects.filter(offering__course__program__department__institution=i)
     beds=HostelBed.objects.filter(institution=i)
     fees=FeeAccount.objects.filter(student__institution=i)
     assessed=fees.aggregate(total=Sum('assessed'))['total'] or Decimal('0.00')
     paid=FeeReceipt.objects.filter(account__student__institution=i).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-    return Response({'date':str(timezone.localdate()),'students':students.count(),'active_students':students.filter(status='Active').count(),'pending_admissions':students.filter(status='Pending').count(),'attendance_entries_today':attendance.count(),'present_entries_today':attendance.filter(present=True).count(),'fee_assessed':str(assessed),'fee_received':str(paid),'fee_outstanding':str(assessed-paid),'beds':beds.count(),'allocated_beds':beds.filter(student__isnull=False).count(),'usable_vacant_beds':beds.filter(student__isnull=True,usable=True).count(),'hostel_checks_today':HostelCheck.objects.filter(student__institution=i,day=timezone.localdate()).count(),'departments':Department.objects.filter(institution=i,active=True).count(),'programs':AcademicProgram.objects.filter(department__institution=i,active=True).count(),'courses':AcademicCourse.objects.filter(program__department__institution=i,active=True).count(),'program_breakdown':list(students.values('program').annotate(total=Count('id')).order_by('program')),'recent_activity':[] if m.role=='principal' else list(AuditEvent.objects.filter(institution=i).order_by('-created_at').values('action','target','actor__username','created_at')[:15])})
+    return Response({'date':str(timezone.localdate()),'students':students.count(),'active_students':students.filter(status='Active').count(),'pending_admissions':students.filter(status='Pending').count(),'lectures_today':lectures.count(),'session_attendance_today':recorded.count(),'session_present_today':recorded.filter(present=True).count(),'open_exams':exam_rows.filter(status='open').count(),'published_exams':exam_rows.filter(status='published').count(),'attendance_entries_today':attendance.count(),'present_entries_today':attendance.filter(present=True).count(),'fee_assessed':str(assessed),'fee_received':str(paid),'fee_outstanding':str(assessed-paid),'beds':beds.count(),'allocated_beds':beds.filter(student__isnull=False).count(),'usable_vacant_beds':beds.filter(student__isnull=True,usable=True).count(),'hostel_checks_today':HostelCheck.objects.filter(student__institution=i,day=timezone.localdate()).count(),'departments':Department.objects.filter(institution=i,active=True).count(),'programs':AcademicProgram.objects.filter(department__institution=i,active=True).count(),'courses':AcademicCourse.objects.filter(program__department__institution=i,active=True).count(),'program_breakdown':list(students.values('program').annotate(total=Count('id')).order_by('program')),'recent_activity':[] if m.role=='principal' else list(AuditEvent.objects.filter(institution=i).order_by('-created_at').values('action','target','actor__username','created_at')[:15])})
