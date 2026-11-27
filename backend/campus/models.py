@@ -354,3 +354,42 @@ class AlumniOpportunity(models.Model):
 class AlumniSettings(models.Model):
     institution=models.OneToOneField(Institution,on_delete=models.PROTECT)
     donation_url=models.URLField(blank=True)
+
+class LearningResource(models.Model):
+    offering=models.ForeignKey(CourseOffering,on_delete=models.PROTECT)
+    title=models.CharField(max_length=150)
+    text=models.TextField(blank=True)
+    url=models.URLField(blank=True)
+    created_at=models.DateTimeField(auto_now_add=True)
+
+class LearningAssignment(models.Model):
+    offering=models.ForeignKey(CourseOffering,on_delete=models.PROTECT)
+    title=models.CharField(max_length=150)
+    instructions=models.TextField()
+    deadline=models.DateTimeField()
+    maximum=models.PositiveIntegerField()
+
+class LearningSubmission(models.Model):
+    assignment=models.ForeignKey(LearningAssignment,on_delete=models.PROTECT)
+    enrollment=models.ForeignKey(CourseEnrollment,on_delete=models.PROTECT)
+    answer=models.TextField()
+    marks=models.PositiveIntegerField(null=True,blank=True)
+    feedback=models.CharField(max_length=1000,blank=True)
+    submitted_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['assignment','enrollment'],name='unique_learning_submission')]
+
+class LearningQuiz(models.Model):
+    offering=models.ForeignKey(CourseOffering,on_delete=models.PROTECT)
+    title=models.CharField(max_length=150)
+    deadline=models.DateTimeField()
+    questions=models.JSONField()
+
+class QuizAttempt(models.Model):
+    quiz=models.ForeignKey(LearningQuiz,on_delete=models.PROTECT)
+    enrollment=models.ForeignKey(CourseEnrollment,on_delete=models.PROTECT)
+    answers=models.JSONField()
+    score=models.PositiveIntegerField()
+    submitted_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['quiz','enrollment'],name='unique_learning_quiz_attempt')]

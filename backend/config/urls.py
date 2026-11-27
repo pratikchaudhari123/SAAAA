@@ -40,3 +40,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/careers/drives/<int:pk>/eligi
 
 from campus import alumni
 urlpatterns += [path('api/institutions/<slug:slug>/alumni/',alumni.workspace),path('api/institutions/<slug:slug>/alumni/<str:action>/',alumni.action)]
+
+from campus import learning
+urlpatterns += [path('api/institutions/<slug:slug>/learning/',learning.workspace),path('api/institutions/<slug:slug>/learning/<str:action>/',learning.action)]
