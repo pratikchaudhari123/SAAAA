@@ -49,3 +49,9 @@ New release: 7 new models and 2 new backend test methods. Expected 23 institutio
 - Migration files must be reconciled with the existing developer migration history and committed before a reproducible production release. Fresh team setup generates migrations only for an isolated new database.
 
 The college must provide approved policy definitions, authorized historical export, device inventory and vendor API/SDK access. Its actual data, hardware and software are not connected. Bidder eligibility and commercial/contractual compliance require independent review.
+
+## Latest verification and account administration
+
+On the existing developer Mac, release 7cb76b0 passed 19 backend tests, three frontend metadata tests, 92 existing HTTP checks and 24 Connect HTTP checks (138 checks combined). All 23 institutional tables were migrated successfully. The synthetic team dataset was generated. Independent fresh-clone and browser acceptance are not yet verified.
+
+New follow-up release adds Institution Setup > User accounts: admin-only staff/student account creation, linking an active unlinked student and generated passwords returned once. Password expiry, recovery, role changes and full multi-role permissions remain pending. Two new backend test methods and scripts/academic_acceptance.py cover provisioning and the academic/exam lifecycle. These new changes require runtime verification. Expected backend test count: 21. On the existing developer stack run python3 scripts/academic_acceptance.py after backend restart; it creates a separate synthetic institution and disables disposable accounts afterward. No real GCOEA data is used.
