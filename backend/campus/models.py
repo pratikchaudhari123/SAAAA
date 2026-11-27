@@ -7,7 +7,7 @@ class Institution(models.Model):
 class Membership(models.Model):
     institution = models.ForeignKey(Institution,on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE)
-    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal'),('student','Student'),('coe','Examination Controller'),('tpo','Placement Officer'),('tpo_assistant','Placement Assistant'),('company','Recruitment Company')])
+    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal'),('student','Student'),('coe','Examination Controller'),('tpo','Placement Officer'),('tpo_assistant','Placement Assistant'),('company','Recruitment Company'),('alumni','Alumni')])
     class Meta:
         constraints = [models.UniqueConstraint(fields=['institution','user'],name='unique_campus_member')]
 class Student(models.Model):
@@ -18,7 +18,7 @@ class Student(models.Model):
     email = models.EmailField()
     program = models.CharField(max_length=150)
     year = models.PositiveSmallIntegerField()
-    status = models.CharField(max_length=20,choices=[('Active','Active'),('Pending','Pending'),('On Hold','On Hold')],default='Pending')
+    status = models.CharField(max_length=20,choices=[('Active','Active'),('Pending','Pending'),('On Hold','On Hold'),('Graduated','Graduated')],default='Pending')
     class Meta:
         constraints = [models.UniqueConstraint(fields=['institution','student_id'],name='unique_campus_student'),models.UniqueConstraint(fields=['institution','portal_user'],name='unique_student_portal_user')]
 class AuditEvent(models.Model):
@@ -330,3 +330,27 @@ class RecruitmentApplication(models.Model):
     applied_at=models.DateTimeField(auto_now_add=True)
     class Meta:
         constraints=[models.UniqueConstraint(fields=['drive','student'],name='unique_recruitment_application')]
+
+class AlumniRecord(models.Model):
+    student=models.OneToOneField(Student,on_delete=models.PROTECT,related_name='alumni_record')
+    graduation_day=models.DateField()
+    approval_reference=models.CharField(max_length=100)
+    approved_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    program_snapshot=models.CharField(max_length=150)
+    occupation=models.CharField(max_length=20,choices=[('unknown','Not provided'),('employee','Employee'),('entrepreneur','Entrepreneur'),('other','Other')],default='unknown')
+    employer=models.CharField(max_length=150,blank=True)
+    location=models.CharField(max_length=150,blank=True)
+    updated_at=models.DateTimeField(auto_now=True)
+
+class AlumniOpportunity(models.Model):
+    alumni=models.ForeignKey(AlumniRecord,on_delete=models.PROTECT)
+    kind=models.CharField(max_length=20,choices=[('recruitment','Recruitment'),('training','Training'),('mentoring','Mentoring')])
+    title=models.CharField(max_length=150)
+    description=models.CharField(max_length=1000)
+    contact_url=models.URLField(blank=True)
+    status=models.CharField(max_length=20,choices=[('pending','Pending'),('approved','Approved'),('rejected','Rejected')],default='pending')
+    created_at=models.DateTimeField(auto_now_add=True)
+
+class AlumniSettings(models.Model):
+    institution=models.OneToOneField(Institution,on_delete=models.PROTECT)
+    donation_url=models.URLField(blank=True)

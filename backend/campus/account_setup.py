@@ -8,15 +8,15 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from .models import Institution, Membership, Student, AuditEvent
 
-ROLES=[('admissions','Admission officer'),('faculty','Faculty'),('finance','Finance officer'),('warden','Hostel warden'),('principal','Principal'),('student','Student'),('coe','Examination controller'),('viewer','Viewer'),('tpo','Placement officer'),('tpo_assistant','Placement assistant'),('company','Recruitment company')]
+ROLES=[('admissions','Admission officer'),('faculty','Faculty'),('finance','Finance officer'),('warden','Hostel warden'),('principal','Principal'),('student','Student'),('coe','Examination controller'),('viewer','Viewer'),('tpo','Placement officer'),('tpo_assistant','Placement assistant'),('company','Recruitment company'),('alumni','Alumni')]
 
 class AccountInput(serializers.Serializer):
     username=serializers.RegexField(regex=r'^[a-z0-9][a-z0-9_.-]{2,79}$',max_length=80)
     role=serializers.ChoiceField(choices=ROLES)
     student_id=serializers.CharField(max_length=50,required=False,allow_blank=True)
     def validate(self,data):
-        if (data['role']=='student') != bool(data.get('student_id')):
-            raise serializers.ValidationError('Student accounts must link one active student; non-student accounts must not include a student ID.')
+        if (data['role'] in ('student','alumni')) != bool(data.get('student_id')):
+            raise serializers.ValidationError('Student and alumni accounts require a matching student ID; other accounts must not include one.')
         return data
 
 @api_view(['GET','POST'])
@@ -29,7 +29,7 @@ def accounts(request,slug):
         links=dict(Student.objects.filter(institution=m.institution,portal_user__isnull=False).values_list('portal_user__username','student_id'))
         for row in rows:
             row['student_id']=links.get(row['user__username'])
-        available=list(Student.objects.filter(institution=m.institution,status='Active',portal_user__isnull=True).order_by('student_id').values('student_id','name'))
+        available=list(Student.objects.filter(institution=m.institution,status__in=['Active','Graduated'],portal_user__isnull=True).order_by('student_id').values('student_id','name','status'))
         return Response({'accounts':rows,'available_students':available,'roles':ROLES})
     form=AccountInput(data=request.data)
     form.is_valid(raise_exception=True)
@@ -39,8 +39,8 @@ def accounts(request,slug):
         with transaction.atomic():
             Institution.objects.select_for_update().get(pk=m.institution_id)
             student=None
-            if d['role']=='student':
-                student=Student.objects.select_for_update().filter(institution=m.institution,student_id=d['student_id'],status='Active',portal_user__isnull=True).first()
+            if d['role'] in ('student','alumni'):
+                student=Student.objects.select_for_update().filter(institution=m.institution,student_id=d['student_id'],status='Active' if d['role']=='student' else 'Graduated',portal_user__isnull=True).first()
                 if not student:
                     raise ValidationError('Student not available for account provisioning.')
             User=get_user_model()
