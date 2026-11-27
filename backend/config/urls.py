@@ -49,3 +49,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/ledger/',ledger.workspace),pa
 
 from campus import communications
 urlpatterns += [path('api/institutions/<slug:slug>/communications/',communications.workspace),path('api/institutions/<slug:slug>/communications/<str:action>/',communications.action)]
+
+from campus import registration
+urlpatterns += [path('api/institutions/<slug:slug>/registration/',registration.workspace),path('api/institutions/<slug:slug>/registration/<str:action>/',registration.action),path('api/institutions/<slug:slug>/registration/documents/<int:pk>/',registration.document_view)]

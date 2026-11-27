@@ -7,7 +7,7 @@ class Institution(models.Model):
 class Membership(models.Model):
     institution = models.ForeignKey(Institution,on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE)
-    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal'),('student','Student'),('coe','Examination Controller'),('tpo','Placement Officer'),('tpo_assistant','Placement Assistant'),('company','Recruitment Company'),('alumni','Alumni')])
+    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal'),('student','Student'),('coe','Examination Controller'),('tpo','Placement Officer'),('tpo_assistant','Placement Assistant'),('company','Recruitment Company'),('alumni','Alumni'),('applicant','Admission Applicant')])
     class Meta:
         constraints = [models.UniqueConstraint(fields=['institution','user'],name='unique_campus_member')]
 class Student(models.Model):
@@ -477,3 +477,39 @@ class FeedbackResponse(models.Model):
     survey=models.ForeignKey(FeedbackSurvey,on_delete=models.PROTECT,related_name='responses')
     scores=models.JSONField()
     submitted_at=models.DateTimeField(auto_now_add=True)
+
+class RegistrationRule(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    program=models.ForeignKey(AcademicProgram,on_delete=models.PROTECT)
+    code=models.CharField(max_length=30)
+    opens=models.DateField()
+    closes=models.DateField()
+    qualification=models.CharField(max_length=100)
+    minimum_percent=models.DecimalField(max_digits=5,decimal_places=2)
+    seats=models.PositiveIntegerField()
+    estimated_fee=models.DecimalField(max_digits=12,decimal_places=2)
+    required_documents=models.JSONField(default=list)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['institution','code'],name='unique_registration_rule'),models.CheckConstraint(condition=models.Q(closes__gte=models.F('opens'),minimum_percent__gte=0,minimum_percent__lte=100,seats__gt=0,estimated_fee__gte=0),name='valid_registration_rule')]
+
+class AdmissionApplication(models.Model):
+    membership=models.OneToOneField(Membership,on_delete=models.PROTECT)
+    rule=models.ForeignKey(RegistrationRule,on_delete=models.PROTECT)
+    name=models.CharField(max_length=200,blank=True)
+    email=models.EmailField(blank=True)
+    qualification=models.CharField(max_length=100,blank=True)
+    percent=models.DecimalField(max_digits=5,decimal_places=2,null=True,blank=True)
+    status=models.CharField(max_length=20,choices=[('draft','Draft'),('submitted','Submitted'),('returned','Returned'),('approved','Approved'),('rejected','Rejected')],default='draft')
+    review_note=models.CharField(max_length=500,blank=True)
+    student=models.OneToOneField(Student,on_delete=models.PROTECT,null=True,blank=True)
+    updated_at=models.DateTimeField(auto_now=True)
+    created_at=models.DateTimeField(auto_now_add=True)
+
+class AdmissionDocument(models.Model):
+    application=models.ForeignKey(AdmissionApplication,on_delete=models.PROTECT,related_name='documents')
+    kind=models.CharField(max_length=30)
+    image=models.BinaryField(editable=False)
+    sha256=models.CharField(max_length=64)
+    uploaded_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['application','kind'],name='unique_admission_document')]

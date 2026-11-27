@@ -8,7 +8,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from .models import Institution, Membership, Student, AuditEvent
 
-ROLES=[('admissions','Admission officer'),('faculty','Faculty'),('finance','Finance officer'),('warden','Hostel warden'),('principal','Principal'),('student','Student'),('coe','Examination controller'),('viewer','Viewer'),('tpo','Placement officer'),('tpo_assistant','Placement assistant'),('company','Recruitment company'),('alumni','Alumni')]
+ROLES=[('admissions','Admission officer'),('faculty','Faculty'),('finance','Finance officer'),('warden','Hostel warden'),('principal','Principal'),('student','Student'),('coe','Examination controller'),('viewer','Viewer'),('tpo','Placement officer'),('tpo_assistant','Placement assistant'),('company','Recruitment company'),('alumni','Alumni'),('applicant','Admission applicant')]
 
 class AccountInput(serializers.Serializer):
     username=serializers.RegexField(regex=r'^[a-z0-9][a-z0-9_.-]{2,79}$',max_length=80)

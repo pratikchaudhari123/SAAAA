@@ -11,7 +11,7 @@ from .models import (Institution, Membership, CampusNotice, NoticeAcknowledgment
     FeedbackInvite, FeedbackResponse, Student, CourseEnrollment, LectureSession, SessionAttendance, FeeAccount, FeeReceipt)
 from .academic_engine import member, offerings, parse, get, log
 
-INTERNAL=[r[0] for r in Membership._meta.get_field('role').choices if r[0]!='company']
+INTERNAL=[r[0] for r in Membership._meta.get_field('role').choices if r[0] not in ('company','applicant')]
 class NoticeInput(serializers.Serializer):
     title=serializers.CharField(max_length=150)
     body=serializers.CharField(max_length=10000)
