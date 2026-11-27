@@ -1,0 +1,155 @@
+from django.test import TestCase
+from django.contrib.auth import get_user_model
+from .models import Institution, Membership, Student, AuditEvent
+class IsolationTests(TestCase):
+    def setUp(self):
+        self.a=Institution.objects.create(name='A',slug='a')
+        self.b=Institution.objects.create(name='B',slug='b')
+        self.user=get_user_model().objects.create_user(username='testuser',password='test-only-password')
+        Membership.objects.create(user=self.user,institution=self.a,role='admin')
+        self.client.force_login(self.user)
+    def test_other_tenant_denied(self):
+        self.assertEqual(self.client.get('/api/institutions/b/students/').status_code,403)
+    def test_create_and_audit(self):
+        data={'student_id':'DEMO-1','name':'Demo Student','email':'student@example.invalid','program':'Engineering','year':1,'status':'Active'}
+        self.assertEqual(self.client.post('/api/institutions/a/students/',data,content_type='application/json').status_code,201)
+        self.assertEqual(Student.objects.filter(institution=self.a).count(),1)
+        self.assertEqual(AuditEvent.objects.filter(actor=self.user).count(),1)
+    def test_anonymous_denied(self):
+        self.client.logout()
+        self.assertEqual(self.client.get('/api/institutions/a/students/').status_code,403)
+    def test_viewer_cannot_create(self):
+        Membership.objects.filter(user=self.user).update(role='viewer')
+        self.assertEqual(self.client.post('/api/institutions/a/students/',{'student_id':'X','name':'Demo','email':'demo@example.invalid','program':'Engineering','year':1},content_type='application/json').status_code,403)
+
+    def test_creation_cannot_bypass_admission(self):
+        data={'student_id':'DEMO-BYPASS','name':'Demo Student','email':'student@example.invalid','program':'Engineering','year':1,'status':'Active'}
+        self.assertEqual(self.client.post('/api/institutions/a/students/',data,content_type='application/json').status_code,201)
+        self.assertEqual(Student.objects.get(institution=self.a,student_id='DEMO-BYPASS').status,'Pending')
+    def test_health_checks_database(self):
+        response=self.client.get('/api/health/')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json()['database'],'connected')
+
+    def test_session_status(self):
+        self.assertTrue(self.client.get('/api/session/').json()['authenticated'])
+        self.client.logout()
+        self.assertFalse(self.client.get('/api/session/').json()['authenticated'])
+
+    def test_live_operations(self):
+        from django.utils import timezone
+        from .models import AttendanceEntry, FeeAccount, FeeReceipt, HostelBed, HostelCheck
+        Student.objects.create(institution=self.a,student_id='S1',name='Example',email='s1@example.invalid',program='Engineering',year=1,status='Active')
+        base='/api/institutions/a/operations/'
+        def post(area,data):
+            return self.client.post(base+area+'/',data,content_type='application/json')
+        entry={'student_id':'S1','day':str(timezone.localdate()),'course':'DEMO101','present':True}
+        self.assertEqual(post('attendance',entry).status_code,201)
+        self.assertEqual(post('attendance',{**entry,'present':False}).status_code,201)
+        self.assertEqual(AttendanceEntry.objects.count(),1)
+        self.assertFalse(AttendanceEntry.objects.get().present)
+        self.assertEqual(post('fees',{'student_id':'S1','period':'2026-27','assessed':'1000.00'}).status_code,201)
+        account=FeeAccount.objects.get()
+        self.assertEqual(post('receipts',{'account':account.pk,'amount':'400.00','method':'cash'}).status_code,201)
+        self.assertEqual(post('receipts',{'account':account.pk,'amount':'601.00','method':'bank'}).status_code,400)
+        self.assertEqual(FeeReceipt.objects.count(),1)
+        self.assertEqual(self.client.get(base+'fees/').json()[0]['balance'],'600.00')
+        self.assertEqual(post('beds',{'code':'H1-A','student_id':'S1'}).status_code,201)
+        self.assertEqual(post('beds',{'code':'H1-B','student_id':'S1'}).status_code,400)
+        self.assertEqual(HostelBed.objects.count(),1)
+        self.assertEqual(post('hostel_checks',{'code':'H1-A','status':'present'}).status_code,201)
+        self.assertEqual(HostelCheck.objects.count(),1)
+        self.assertGreaterEqual(AuditEvent.objects.count(),6)
+        self.assertEqual(self.client.get('/api/institutions/b/operations/fees/').status_code,403)
+        Membership.objects.filter(user=self.user).update(role='viewer')
+        self.assertEqual(self.client.get(base+'fees/').status_code,403)
+        self.assertEqual(post('attendance',entry).status_code,403)
+
+    def test_operational_role_boundaries(self):
+        base='/api/institutions/a/operations/'
+        for role,allowed in [('faculty',{'attendance'}),('finance',{'fees','receipts'}),('warden',{'beds','hostel_checks'})]:
+            Membership.objects.filter(user=self.user).update(role=role)
+            for area in ['attendance','fees','receipts','beds','hostel_checks']:
+                self.assertEqual(self.client.get(base+area+'/').status_code,200 if area in allowed else 403)
+
+    def test_institution_setup_and_isolation(self):
+        from .models import Department
+        other=Department.objects.create(institution=self.b,code='OTHER',name='Other college')
+        base='/api/institutions/a/setup/'
+        def post(path,data):
+            return self.client.post(base+path,data,content_type='application/json')
+        result=post('departments/',{'code':'CSE','name':'Computer Engineering'})
+        self.assertEqual(result.status_code,201)
+        dept=result.json()['id']
+        self.assertEqual(post('departments/',{'code':'CSE','name':'Duplicate'}).status_code,400)
+        self.assertEqual(post('programs/',{'code':'BE','name':'BE','department':other.pk,'duration_years':4,'intake':60}).status_code,400)
+        result=post('programs/',{'code':'BE','name':'BE','department':dept,'duration_years':4,'intake':60})
+        self.assertEqual(result.status_code,201)
+        program=result.json()['id']
+        self.assertEqual(post('courses/',{'code':'CS101','name':'Programming','program':program,'semester':9,'credits':3}).status_code,400)
+        self.assertEqual(post('courses/',{'code':'CS101','name':'Programming','program':program,'semester':1,'credits':3}).status_code,201)
+        self.assertEqual(post(f'departments/{dept}/status/',{'active':False}).status_code,400)
+        self.assertEqual(post(f'departments/{other.pk}/status/',{'active':False}).status_code,400)
+        self.assertEqual(post('periods/',{'code':'2026-27','starts':'2026-07-01','ends':'2027-06-30'}).status_code,201)
+        self.assertEqual(post('periods/',{'code':'invalid','starts':'2027-07-01','ends':'2026-06-30'}).status_code,400)
+        self.assertEqual(len(self.client.get(base+'departments/').json()),1)
+        dashboard=self.client.get('/api/institutions/a/dashboard/').json()
+        self.assertEqual(dashboard['departments'],1)
+        self.assertEqual(dashboard['programs'],1)
+        self.assertEqual(dashboard['courses'],1)
+        self.assertEqual(self.client.get('/api/institutions/b/dashboard/').status_code,403)
+        Membership.objects.filter(user=self.user).update(role='viewer')
+        self.assertEqual(self.client.get(base+'departments/').status_code,403)
+        self.assertEqual(self.client.get('/api/institutions/a/dashboard/').status_code,403)
+
+    def test_principal_read_only_dashboard(self):
+        Membership.objects.filter(user=self.user).update(role='principal')
+        self.assertEqual(self.client.get('/api/institutions/a/dashboard/').status_code,200)
+        self.assertEqual(self.client.get('/api/institutions/a/dashboard/').json()['recent_activity'],[])
+        self.assertEqual(self.client.get('/api/institutions/b/dashboard/').status_code,403)
+        self.assertEqual(self.client.get('/api/institutions/a/students/').status_code,200)
+        self.assertEqual(self.client.get('/api/institutions/a/setup/departments/').status_code,403)
+        self.assertEqual(self.client.get('/api/institutions/a/operations/fees/').status_code,403)
+        self.assertEqual(self.client.post('/api/institutions/a/students/S1/admission/',{'status':'Active'},content_type='application/json').status_code,403)
+
+    def test_student_private_workspace(self):
+        from django.utils import timezone
+        from decimal import Decimal
+        from uuid import uuid4
+        from .models import AttendanceEntry, FeeAccount, FeeReceipt, HostelBed
+        User=get_user_model()
+        user=User.objects.create_user(username='student-private',password='test-only-password')
+        other=User.objects.create_user(username='student-other',password='test-only-password')
+        Membership.objects.create(institution=self.a,user=user,role='student')
+        Membership.objects.create(institution=self.a,user=other,role='student')
+        s=Student.objects.create(institution=self.a,portal_user=user,student_id='PRIVATE-1',name='Private One',email='one@example.invalid',program='Engineering',year=1,status='Active')
+        t=Student.objects.create(institution=self.a,portal_user=other,student_id='PRIVATE-2',name='Private Two',email='two@example.invalid',program='Engineering',year=1,status='Active')
+        AttendanceEntry.objects.create(student=s,day=timezone.localdate(),course='SELF101',present=True,recorded_by=self.user)
+        AttendanceEntry.objects.create(student=t,day=timezone.localdate(),course='OTHER101',present=False,recorded_by=self.user)
+        a=FeeAccount.objects.create(student=s,period='QA',assessed=Decimal('1000.00'))
+        FeeReceipt.objects.create(account=a,reference=uuid4(),amount=Decimal('400.00'),method='cash',recorded_by=self.user)
+        FeeAccount.objects.create(student=t,period='PRIVATE',assessed=Decimal('2000.00'))
+        HostelBed.objects.create(institution=self.a,code='SELF-BED',student=s)
+        self.client.force_login(user)
+        url='/api/institutions/a/my-campus/'
+        response=self.client.get(url)
+        self.assertEqual(response.status_code,200)
+        data=response.json()
+        self.assertEqual(data['profile']['student_id'],'PRIVATE-1')
+        self.assertEqual(data['attendance']['total'],1)
+        self.assertEqual(data['attendance']['recent'][0]['course'],'SELF101')
+        self.assertEqual(len(data['fees']),1)
+        self.assertEqual(Decimal(data['fees'][0]['balance']),Decimal('600.00'))
+        self.assertEqual(data['hostel']['code'],'SELF-BED')
+        self.assertEqual(self.client.get(url+'?student_id=PRIVATE-2').json()['profile']['student_id'],'PRIVATE-1')
+        self.assertEqual(self.client.get('/api/institutions/a/students/').status_code,403)
+        self.assertEqual(self.client.get('/api/institutions/b/my-campus/').status_code,403)
+        self.assertEqual(self.client.get('/api/institutions/a/operations/fees/').status_code,403)
+        self.assertEqual(self.client.get('/api/institutions/a/dashboard/').status_code,403)
+        self.assertEqual(self.client.post(url,{'student_id':'PRIVATE-2'},content_type='application/json').status_code,405)
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(url).json()['profile']['student_id'],'PRIVATE-2')
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(url).status_code,403)
+        self.client.logout()
+        self.assertEqual(self.client.get(url).status_code,403)
