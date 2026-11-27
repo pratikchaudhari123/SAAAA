@@ -58,3 +58,5 @@ urlpatterns += [path('api/institutions/<slug:slug>/permissions/',permissions.wor
 
 from campus import timetable
 urlpatterns += [path('api/institutions/<slug:slug>/timetable/',timetable.workspace),path('api/institutions/<slug:slug>/timetable/<str:action>/',timetable.action)]
+
+urlpatterns += [path('api/institutions/<slug:slug>/learning/attachments/<int:pk>/',learning.download)]

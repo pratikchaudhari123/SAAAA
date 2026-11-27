@@ -587,3 +587,13 @@ class LectureTeachingPlan(models.Model):
     delivery_note=models.TextField(blank=True)
     updated_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
     updated_at=models.DateTimeField(auto_now=True)
+
+class LearningAttachment(models.Model):
+    resource=models.OneToOneField(LearningResource,on_delete=models.PROTECT,related_name='attachment')
+    filename=models.CharField(max_length=150)
+    content_type=models.CharField(max_length=100)
+    content=models.BinaryField(editable=False)
+    size=models.PositiveIntegerField()
+    sha256=models.CharField(max_length=64)
+    uploaded_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    uploaded_at=models.DateTimeField(auto_now_add=True)
