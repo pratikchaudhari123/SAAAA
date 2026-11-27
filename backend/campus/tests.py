@@ -71,3 +71,33 @@ class IsolationTests(TestCase):
             Membership.objects.filter(user=self.user).update(role=role)
             for area in ['attendance','fees','receipts','beds','hostel_checks']:
                 self.assertEqual(self.client.get(base+area+'/').status_code,200 if area in allowed else 403)
+
+    def test_institution_setup_and_isolation(self):
+        from .models import Department
+        other=Department.objects.create(institution=self.b,code='OTHER',name='Other college')
+        base='/api/institutions/a/setup/'
+        def post(path,data):
+            return self.client.post(base+path,data,content_type='application/json')
+        result=post('departments/',{'code':'CSE','name':'Computer Engineering'})
+        self.assertEqual(result.status_code,201)
+        dept=result.json()['id']
+        self.assertEqual(post('departments/',{'code':'CSE','name':'Duplicate'}).status_code,400)
+        self.assertEqual(post('programs/',{'code':'BE','name':'BE','department':other.pk,'duration_years':4,'intake':60}).status_code,400)
+        result=post('programs/',{'code':'BE','name':'BE','department':dept,'duration_years':4,'intake':60})
+        self.assertEqual(result.status_code,201)
+        program=result.json()['id']
+        self.assertEqual(post('courses/',{'code':'CS101','name':'Programming','program':program,'semester':9,'credits':3}).status_code,400)
+        self.assertEqual(post('courses/',{'code':'CS101','name':'Programming','program':program,'semester':1,'credits':3}).status_code,201)
+        self.assertEqual(post(f'departments/{dept}/status/',{'active':False}).status_code,400)
+        self.assertEqual(post(f'departments/{other.pk}/status/',{'active':False}).status_code,400)
+        self.assertEqual(post('periods/',{'code':'2026-27','starts':'2026-07-01','ends':'2027-06-30'}).status_code,201)
+        self.assertEqual(post('periods/',{'code':'invalid','starts':'2027-07-01','ends':'2026-06-30'}).status_code,400)
+        self.assertEqual(len(self.client.get(base+'departments/').json()),1)
+        dashboard=self.client.get('/api/institutions/a/dashboard/').json()
+        self.assertEqual(dashboard['departments'],1)
+        self.assertEqual(dashboard['programs'],1)
+        self.assertEqual(dashboard['courses'],1)
+        self.assertEqual(self.client.get('/api/institutions/b/dashboard/').status_code,403)
+        Membership.objects.filter(user=self.user).update(role='viewer')
+        self.assertEqual(self.client.get(base+'departments/').status_code,403)
+        self.assertEqual(self.client.get('/api/institutions/a/dashboard/').status_code,403)
