@@ -9,3 +9,6 @@ urlpatterns += [path('api/session/',views.session_status)]
 
 from campus import operations
 urlpatterns += [path('api/institutions/<slug:slug>/operations/'+name+'/',getattr(operations,name)) for name in ['attendance','fees','receipts','beds','hostel_checks']]
+
+from campus import platform
+urlpatterns += [path('api/institutions/<slug:slug>/setup/<str:kind>/',platform.master),path('api/institutions/<slug:slug>/setup/<str:kind>/<int:pk>/status/',platform.master_status),path('api/institutions/<slug:slug>/dashboard/',platform.dashboard)]
