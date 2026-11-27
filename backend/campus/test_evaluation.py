@@ -110,7 +110,7 @@ class EvaluationTests(TestCase):
         self.assertEqual(response.status_code,200)
         self.assertEqual(response['Content-Type'],'image/jpeg')
         self.assertEqual(response['Cache-Control'],'private, no-store')
-        self.assertTrue(response.content.startswith(b'\\xff\\xd8'))
+        self.assertTrue(response.content.startswith(bytes.fromhex('ffd8')))
         self.post(path+'annotations/',{'x':10001,'y':0,'note':'Outside page'},400)
         self.post(path+'annotations/',{'x':4000,'y':5000,'note':'Check calculation'})
         self.post('evaluation/score/',{'evaluation':book,'question':q,'marks':84})
