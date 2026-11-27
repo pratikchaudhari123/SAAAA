@@ -5,7 +5,7 @@ from rest_framework import serializers
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import PermissionDenied, ValidationError, NotFound
 from rest_framework.response import Response
-from .models import Institution, Student, Membership, AlumniRecord, AlumniOpportunity, AlumniSettings
+from .models import Institution, Student, Membership, AlumniRecord, AlumniOpportunity, AlumniSettings, ExamApplication
 from .academic_engine import member, parse, get, log
 
 ROLES=('admin','principal','tpo','tpo_assistant','alumni','student')
@@ -45,6 +45,12 @@ def workspace(request,slug):
     data={'records':list((records if manager else own).order_by('-graduation_day').values('id','student__student_id','student__name','program_snapshot','graduation_day','occupation','employer','location')),
           'opportunities':list((opportunities if manager else opportunities.filter(status='approved')|opportunities.filter(alumni__in=own)).order_by('-created_at').values('id','kind','title','description','contact_url','status')),
           'donation_url':AlumniSettings.objects.filter(institution=m.institution).values_list('donation_url',flat=True).first() or ''}
+    if manager:
+        from django.db.models import Count
+        data['program_counts']=list(records.values('program_snapshot').annotate(total=Count('pk')).order_by('program_snapshot'))
+        data['occupation_counts']=list(records.values('occupation').annotate(total=Count('pk')).order_by('occupation'))
+    if m.role=='alumni':
+        data['published_results']=list(ExamApplication.objects.filter(enrollment__student__in=own.values('student_id'),exam__status='published',exam__offering__course__program__department__institution=m.institution,marks__isnull=False).values('exam__title','exam__day','marks','exam__maximum','exam__passing'))
     if m.role=='principal':
         data['candidates']=list(Student.objects.filter(institution=m.institution,status='Active').order_by('student_id').values('student_id','name','program','year'))
     response=Response(data); response['Cache-Control']='private, no-store'
