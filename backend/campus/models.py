@@ -25,3 +25,48 @@ class AuditEvent(models.Model):
     action = models.CharField(max_length=50)
     target = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
+
+class AttendanceEntry(models.Model):
+    student = models.ForeignKey(Student,on_delete=models.PROTECT)
+    day = models.DateField()
+    course = models.CharField(max_length=100)
+    present = models.BooleanField()
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['student','day','course'],name='unique_attendance_session')]
+
+class FeeAccount(models.Model):
+    student = models.ForeignKey(Student,on_delete=models.PROTECT)
+    period = models.CharField(max_length=20)
+    assessed = models.DecimalField(max_digits=12,decimal_places=2)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['student','period'],name='unique_fee_period'),models.CheckConstraint(condition=models.Q(assessed__gt=0),name='positive_assessed_fee')]
+
+class FeeReceipt(models.Model):
+    account = models.ForeignKey(FeeAccount,on_delete=models.PROTECT,related_name='receipts')
+    reference = models.UUIDField(unique=True)
+    amount = models.DecimalField(max_digits=12,decimal_places=2)
+    method = models.CharField(max_length=20,choices=[('cash','Cash'),('bank','Bank transfer')])
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(amount__gt=0),name='positive_fee_receipt')]
+
+class HostelBed(models.Model):
+    institution = models.ForeignKey(Institution,on_delete=models.PROTECT)
+    code = models.CharField(max_length=50)
+    student = models.OneToOneField(Student,on_delete=models.PROTECT,null=True,blank=True)
+    usable = models.BooleanField(default=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['institution','code'],name='unique_hostel_bed')]
+
+class HostelCheck(models.Model):
+    bed = models.ForeignKey(HostelBed,on_delete=models.PROTECT)
+    student = models.ForeignKey(Student,on_delete=models.PROTECT)
+    day = models.DateField()
+    status = models.CharField(max_length=20,choices=[('present','Present'),('absent','Absent'),('leave','Approved leave reported')])
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['student','day'],name='unique_hostel_daily_student')]
