@@ -21,3 +21,6 @@ urlpatterns += [path('api/connect/events/',connect.ingest),path('api/institution
 
 from campus import academic_engine
 urlpatterns += [path('api/institutions/<slug:slug>/academic-engine/',academic_engine.academics),path('api/institutions/<slug:slug>/academic-engine/<str:action>/',academic_engine.academic_action),path('api/institutions/<slug:slug>/examination/',academic_engine.examination),path('api/institutions/<slug:slug>/examination/<str:action>/',academic_engine.exam_action)]
+
+from campus import account_setup
+urlpatterns += [path('api/institutions/<slug:slug>/accounts/',account_setup.accounts)]
