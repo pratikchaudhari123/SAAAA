@@ -18,3 +18,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/my-campus/',student_portal.my
 
 from campus import connect
 urlpatterns += [path('api/connect/events/',connect.ingest),path('api/institutions/<slug:slug>/connect/sources/',connect.sources),path('api/institutions/<slug:slug>/connect/sources/<int:pk>/action/',connect.source_action),path('api/institutions/<slug:slug>/connect/events/',connect.events),path('api/institutions/<slug:slug>/connect/student-import/',connect.student_import),path('api/institutions/<slug:slug>/connect/import-history/',connect.import_history)]
+
+from campus import academic_engine
+urlpatterns += [path('api/institutions/<slug:slug>/academic-engine/',academic_engine.academics),path('api/institutions/<slug:slug>/academic-engine/<str:action>/',academic_engine.academic_action),path('api/institutions/<slug:slug>/examination/',academic_engine.examination),path('api/institutions/<slug:slug>/examination/<str:action>/',academic_engine.exam_action)]
