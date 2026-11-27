@@ -7,7 +7,7 @@ class Institution(models.Model):
 class Membership(models.Model):
     institution = models.ForeignKey(Institution,on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE)
-    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal'),('student','Student'),('coe','Examination Controller')])
+    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal'),('student','Student'),('coe','Examination Controller'),('tpo','Placement Officer'),('tpo_assistant','Placement Assistant'),('company','Recruitment Company')])
     class Meta:
         constraints = [models.UniqueConstraint(fields=['institution','user'],name='unique_campus_member')]
 class Student(models.Model):
@@ -289,3 +289,44 @@ class EmployeeLeave(models.Model):
     review_note=models.CharField(max_length=300,blank=True)
     class Meta:
         constraints=[models.CheckConstraint(condition=models.Q(ends__gte=models.F('starts')),name='valid_employee_leave_dates')]
+
+class RecruitmentCompany(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    membership=models.OneToOneField(Membership,on_delete=models.PROTECT)
+    name=models.CharField(max_length=150)
+    contact_email=models.EmailField()
+    description=models.CharField(max_length=500,blank=True)
+    status=models.CharField(max_length=20,choices=[('pending','Pending'),('approved','Approved'),('rejected','Rejected')],default='pending')
+    review_note=models.CharField(max_length=300,blank=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['institution','name'],name='unique_recruitment_company')]
+
+class CareerProfile(models.Model):
+    student=models.OneToOneField(Student,on_delete=models.PROTECT)
+    skills=models.CharField(max_length=500)
+    summary=models.CharField(max_length=1000)
+    updated_at=models.DateTimeField(auto_now=True)
+
+class RecruitmentDrive(models.Model):
+    company=models.ForeignKey(RecruitmentCompany,on_delete=models.PROTECT,related_name='drives')
+    title=models.CharField(max_length=150)
+    kind=models.CharField(max_length=20,choices=[('job','Employment'),('internship','Internship'),('training','Training')])
+    program=models.CharField(max_length=150,blank=True)
+    min_year=models.PositiveSmallIntegerField()
+    max_year=models.PositiveSmallIntegerField()
+    deadline=models.DateField()
+    drive_day=models.DateField()
+    instructions=models.CharField(max_length=1000)
+    status=models.CharField(max_length=20,choices=[('open','Open'),('closed','Closed')],default='open')
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['company','title','drive_day'],name='unique_recruitment_drive'),models.CheckConstraint(condition=models.Q(min_year__gte=1,max_year__lte=8,max_year__gte=models.F('min_year'),drive_day__gte=models.F('deadline')),name='valid_recruitment_drive')]
+
+class RecruitmentApplication(models.Model):
+    drive=models.ForeignKey(RecruitmentDrive,on_delete=models.PROTECT,related_name='applications')
+    student=models.ForeignKey(Student,on_delete=models.PROTECT)
+    skills=models.CharField(max_length=500)
+    summary=models.CharField(max_length=1000)
+    status=models.CharField(max_length=20,choices=[('submitted','Submitted'),('shortlisted','Shortlisted'),('selected','Selected'),('rejected','Rejected'),('withdrawn','Withdrawn')],default='submitted')
+    applied_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['drive','student'],name='unique_recruitment_application')]

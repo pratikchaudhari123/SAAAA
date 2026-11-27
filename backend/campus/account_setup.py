@@ -8,7 +8,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from .models import Institution, Membership, Student, AuditEvent
 
-ROLES=[('admissions','Admission officer'),('faculty','Faculty'),('finance','Finance officer'),('warden','Hostel warden'),('principal','Principal'),('student','Student'),('coe','Examination controller'),('viewer','Viewer')]
+ROLES=[('admissions','Admission officer'),('faculty','Faculty'),('finance','Finance officer'),('warden','Hostel warden'),('principal','Principal'),('student','Student'),('coe','Examination controller'),('viewer','Viewer'),('tpo','Placement officer'),('tpo_assistant','Placement assistant'),('company','Recruitment company')]
 
 class AccountInput(serializers.Serializer):
     username=serializers.RegexField(regex=r'^[a-z0-9][a-z0-9_.-]{2,79}$',max_length=80)
@@ -16,7 +16,7 @@ class AccountInput(serializers.Serializer):
     student_id=serializers.CharField(max_length=50,required=False,allow_blank=True)
     def validate(self,data):
         if (data['role']=='student') != bool(data.get('student_id')):
-            raise serializers.ValidationError('Student accounts must link one active student; staff accounts must not include a student ID.')
+            raise serializers.ValidationError('Student accounts must link one active student; non-student accounts must not include a student ID.')
         return data
 
 @api_view(['GET','POST'])

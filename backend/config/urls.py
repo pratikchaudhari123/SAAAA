@@ -33,3 +33,7 @@ urlpatterns += [path('api/institutions/<slug:slug>/evaluation/books/<int:pk>/pag
 
 from campus import hr
 urlpatterns += [path('api/institutions/<slug:slug>/hr/',hr.workspace),path('api/institutions/<slug:slug>/hr/<str:action>/',hr.action)]
+
+from campus import careers
+urlpatterns += [path('api/institutions/<slug:slug>/careers/',careers.workspace),path('api/institutions/<slug:slug>/careers/<str:action>/',careers.action)]
+urlpatterns += [path('api/institutions/<slug:slug>/careers/drives/<int:pk>/eligible/',careers.eligible)]
