@@ -36,7 +36,9 @@ def scoped(m):
 @api_view(['GET'])
 def workspace(request,slug):
     m=member(request,slug,['admin','coe','faculty'])
-    books=list(scoped(m).order_by('-pk').values('id','book_ref','application__exam_id','application__exam__title','status','review_note','assigned_at','submitted_at','reviewed_at','examiner__user__username'))
+    fields=['id','book_ref','application__exam_id','application__exam__title','status','review_note','assigned_at','submitted_at','reviewed_at','examiner__user__username']
+    if m.role!='faculty': fields+=['application_id','application__enrollment__student__student_id']
+    books=list(scoped(m).order_by('-pk').values(*fields))
     exam_ids={b['application__exam_id'] for b in books}
     if m.role!='faculty':
         exam_ids=set(exams(m).values_list('pk',flat=True))
