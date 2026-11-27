@@ -21,3 +21,12 @@ class IsolationTests(TestCase):
     def test_viewer_cannot_create(self):
         Membership.objects.filter(user=self.user).update(role='viewer')
         self.assertEqual(self.client.post('/api/institutions/a/students/',{'student_id':'X','name':'Demo','email':'demo@example.invalid','program':'Engineering','year':1},content_type='application/json').status_code,403)
+
+    def test_creation_cannot_bypass_admission(self):
+        data={'student_id':'DEMO-BYPASS','name':'Demo Student','email':'student@example.invalid','program':'Engineering','year':1,'status':'Active'}
+        self.assertEqual(self.client.post('/api/institutions/a/students/',data,content_type='application/json').status_code,201)
+        self.assertEqual(Student.objects.get(institution=self.a,student_id='DEMO-BYPASS').status,'Pending')
+    def test_health_checks_database(self):
+        response=self.client.get('/api/health/')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json()['database'],'connected')
