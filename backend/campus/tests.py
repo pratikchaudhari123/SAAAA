@@ -64,3 +64,10 @@ class IsolationTests(TestCase):
         Membership.objects.filter(user=self.user).update(role='viewer')
         self.assertEqual(self.client.get(base+'fees/').status_code,403)
         self.assertEqual(post('attendance',entry).status_code,403)
+
+    def test_operational_role_boundaries(self):
+        base='/api/institutions/a/operations/'
+        for role,allowed in [('faculty',{'attendance'}),('finance',{'fees','receipts'}),('warden',{'beds','hostel_checks'})]:
+            Membership.objects.filter(user=self.user).update(role=role)
+            for area in ['attendance','fees','receipts','beds','hostel_checks']:
+                self.assertEqual(self.client.get(base+area+'/').status_code,200 if area in allowed else 403)
