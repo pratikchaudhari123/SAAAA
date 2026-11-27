@@ -101,3 +101,13 @@ class IsolationTests(TestCase):
         Membership.objects.filter(user=self.user).update(role='viewer')
         self.assertEqual(self.client.get(base+'departments/').status_code,403)
         self.assertEqual(self.client.get('/api/institutions/a/dashboard/').status_code,403)
+
+    def test_principal_read_only_dashboard(self):
+        Membership.objects.filter(user=self.user).update(role='principal')
+        self.assertEqual(self.client.get('/api/institutions/a/dashboard/').status_code,200)
+        self.assertEqual(self.client.get('/api/institutions/a/dashboard/').json()['recent_activity'],[])
+        self.assertEqual(self.client.get('/api/institutions/b/dashboard/').status_code,403)
+        self.assertEqual(self.client.get('/api/institutions/a/students/').status_code,200)
+        self.assertEqual(self.client.get('/api/institutions/a/setup/departments/').status_code,403)
+        self.assertEqual(self.client.get('/api/institutions/a/operations/fees/').status_code,403)
+        self.assertEqual(self.client.post('/api/institutions/a/students/S1/admission/',{'status':'Active'},content_type='application/json').status_code,403)
