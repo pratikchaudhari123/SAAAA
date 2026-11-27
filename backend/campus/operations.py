@@ -10,10 +10,10 @@ from rest_framework.exceptions import PermissionDenied, ValidationError, NotFoun
 from rest_framework.response import Response
 from .models import Membership, Student, AuditEvent, AttendanceEntry, FeeAccount, FeeReceipt, HostelBed, HostelCheck
 
-def access(request,slug,write=False):
+def access(request,slug,role):
     m=Membership.objects.filter(user=request.user,institution__slug=slug).first()
-    if not m or m.role != 'admin':
-        raise PermissionDenied('Institution administrator required for this evaluation workspace.')
+    if not m or m.role not in ('admin',role):
+        raise PermissionDenied('You do not have permission for this module.')
     return m
 
 def student(m,identifier):
@@ -60,7 +60,7 @@ def fee_data(account):
 
 @api_view(['GET','POST'])
 def attendance(request,slug):
-    m=access(request,slug)
+    m=access(request,slug,'faculty')
     if request.method=='POST':
         d=validated(Entry,request)
         with transaction.atomic():
@@ -72,7 +72,7 @@ def attendance(request,slug):
 
 @api_view(['GET','POST'])
 def fees(request,slug):
-    m=access(request,slug)
+    m=access(request,slug,'finance')
     if request.method=='POST':
         d=validated(Charge,request)
         with transaction.atomic():
@@ -85,7 +85,7 @@ def fees(request,slug):
 
 @api_view(['GET','POST'])
 def receipts(request,slug):
-    m=access(request,slug)
+    m=access(request,slug,'finance')
     if request.method=='POST':
         d=validated(Receipt,request)
         with transaction.atomic():
@@ -100,7 +100,7 @@ def receipts(request,slug):
 
 @api_view(['GET','POST'])
 def beds(request,slug):
-    m=access(request,slug)
+    m=access(request,slug,'warden')
     if request.method=='POST':
         d=validated(Bed,request)
         with transaction.atomic():
@@ -121,7 +121,7 @@ def beds(request,slug):
 
 @api_view(['GET','POST'])
 def hostel_checks(request,slug):
-    m=access(request,slug)
+    m=access(request,slug,'warden')
     if request.method=='POST':
         d=validated(Check,request)
         with transaction.atomic():
