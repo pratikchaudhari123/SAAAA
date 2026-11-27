@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from .models import Institution, Membership, Department, Employee, EmployeeDeviceIdentity, EmployeePunch, EmployeeLeave, IntegrationSource
 from .academic_engine import member, get, parse, log
 
-STAFF=['admin','principal','admissions','faculty','finance','warden','coe','viewer']
+STAFF=['admin','principal','admissions','faculty','finance','warden','coe']
 
 class EmployeeInput(serializers.Serializer):
     code=serializers.CharField(max_length=50)
