@@ -6,7 +6,7 @@ class Institution(models.Model):
 class Membership(models.Model):
     institution = models.ForeignKey(Institution,on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE)
-    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal'),('student','Student')])
+    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal'),('student','Student'),('coe','Examination Controller')])
     class Meta:
         constraints = [models.UniqueConstraint(fields=['institution','user'],name='unique_campus_member')]
 class Student(models.Model):
@@ -138,3 +138,61 @@ class StudentImportBatch(models.Model):
     created_count = models.PositiveIntegerField()
     skipped_count = models.PositiveIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+class Classroom(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    code=models.CharField(max_length=40)
+    capacity=models.PositiveIntegerField()
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['institution','code'],name='unique_classroom_code')]
+
+class CourseOffering(models.Model):
+    course=models.ForeignKey(AcademicCourse,on_delete=models.PROTECT)
+    period=models.ForeignKey(AcademicPeriod,on_delete=models.PROTECT)
+    batch=models.CharField(max_length=40)
+    faculty=models.ForeignKey(Membership,on_delete=models.PROTECT)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['course','period','batch'],name='unique_course_offering')]
+
+class CourseEnrollment(models.Model):
+    offering=models.ForeignKey(CourseOffering,on_delete=models.PROTECT,related_name='enrollments')
+    student=models.ForeignKey(Student,on_delete=models.PROTECT)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['offering','student'],name='unique_course_enrollment')]
+
+class LectureSession(models.Model):
+    offering=models.ForeignKey(CourseOffering,on_delete=models.PROTECT)
+    room=models.ForeignKey(Classroom,on_delete=models.PROTECT)
+    starts=models.DateTimeField()
+    ends=models.DateTimeField()
+    class Meta:
+        constraints=[models.CheckConstraint(condition=models.Q(ends__gt=models.F('starts')),name='valid_lecture_times'),models.UniqueConstraint(fields=['offering','starts'],name='unique_lecture_start')]
+
+class SessionAttendance(models.Model):
+    session=models.ForeignKey(LectureSession,on_delete=models.PROTECT)
+    enrollment=models.ForeignKey(CourseEnrollment,on_delete=models.PROTECT)
+    present=models.BooleanField()
+    actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    updated_at=models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['session','enrollment'],name='unique_session_attendance')]
+
+class CourseExam(models.Model):
+    offering=models.ForeignKey(CourseOffering,on_delete=models.PROTECT)
+    title=models.CharField(max_length=100)
+    kind=models.CharField(max_length=20,choices=[('regular','Regular'),('backlog','Backlog'),('makeup','Makeup')])
+    day=models.DateField()
+    maximum=models.PositiveIntegerField()
+    passing=models.PositiveIntegerField()
+    min_attendance=models.PositiveSmallIntegerField(default=0)
+    status=models.CharField(max_length=20,choices=[('open','Applications open'),('closed','Applications closed'),('published','Results published')],default='open')
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['offering','title'],name='unique_course_exam'),models.CheckConstraint(condition=models.Q(maximum__gt=0,passing__gt=0,passing__lte=models.F('maximum'),min_attendance__lte=100),name='valid_exam_thresholds')]
+
+class ExamApplication(models.Model):
+    exam=models.ForeignKey(CourseExam,on_delete=models.PROTECT,related_name='applications')
+    enrollment=models.ForeignKey(CourseEnrollment,on_delete=models.PROTECT)
+    marks=models.PositiveIntegerField(null=True,blank=True)
+    created_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['exam','enrollment'],name='unique_exam_application')]
