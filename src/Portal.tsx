@@ -1,4 +1,4 @@
-import React,{useState} from 'react';
+import { useState } from 'react';
 import {modules} from './data';
 export const roles=['Institution Administrator','Principal','Student','Applicant','Faculty','HOD','Employee','Parent','Accountant','Admission Officer','Examination Controller','Examiner','Hostel Warden','Placement Officer','Recruiter','Alumni','SaaS Administrator'] as const;
 export type Role=typeof roles[number];
