@@ -118,9 +118,11 @@ def ingest(request):
         event,created=IntegrationEvent.objects.get_or_create(source=source,external_id=d['external_id'],defaults={k:v for k,v in d.items() if k!='external_id'})
         if not created and any(getattr(event,k)!=v for k,v in d.items()):
             return Response({'detail':'Event identifier conflicts with existing record.'},status=409)
+        from .hr import project_employee_event
+        posted=project_employee_event(event) if created else hasattr(event,'employee_punch')
         source.last_received_at=timezone.now()
         source.save(update_fields=['last_received_at'])
-    return Response({'id':event.pk,'status':'staged','duplicate':not created},status=201 if created else 200)
+    return Response({'id':event.pk,'status':'employee_punch' if posted else 'staged','duplicate':not created},status=201 if created else 200)
 
 @api_view(['GET'])
 def events(request,slug):
