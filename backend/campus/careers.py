@@ -87,7 +87,9 @@ def workspace(request,slug):
 def eligible(request,slug,pk):
     m=member(request,slug,(*MANAGERS,'principal'))
     drive=get(RecruitmentDrive.objects.filter(company__institution=m.institution,company__membership__institution=m.institution),pk)
-    return Response(list(eligible_students(drive).order_by('student_id').values('student_id','name','program','year')))
+    response=Response(list(eligible_students(drive).order_by('student_id').values('student_id','name','program','year')))
+    response['Cache-Control']='private, no-store'
+    return response
 
 @api_view(['POST'])
 def action(request,slug,action):
