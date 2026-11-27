@@ -81,3 +81,48 @@ class EvaluationTests(TestCase):
         self.client.force_login(self.users['faculty'])
         self.post('evaluation/score/',{'evaluation':b,'question':q1,'marks':1},400)
         self.assertEqual(BookEvaluation.objects.get(pk=b).status,'approved')
+
+    def test_private_scans_and_annotation_lifecycle(self):
+        import base64, io
+        from PIL import Image
+        from .models import AnswerPage, PageAnnotation
+        q=self.question('Q1',100)['id']
+        self.post('examination/state/',{'exam':self.exam.pk,'status':'closed'})
+        book=self.post('evaluation/assign/',{'application':self.app.pk,'examiner':self.members['faculty'].pk,'expected_pages':2})['id']
+        root='evaluation/books/'+str(book)+'/pages/'
+        def image(color):
+            buf=io.BytesIO()
+            Image.new('RGB',(40,60),color).save(buf,format='PNG')
+            return base64.b64encode(buf.getvalue()).decode()
+        self.post(root,{'number':1,'image':'not-image'},400)
+        self.post(root,{'number':3,'image':image('white')},400)
+        p=self.post(root,{'number':1,'image':image('white')})['id']
+        self.post(root,{'number':1,'image':image('black')},400)
+        self.post(root,{'number':2,'image':image('white')},400)
+        path=root+str(p)+'/'
+        self.client.force_login(self.users['other'])
+        self.assertEqual(self.client.get(self.root+path+'image/').status_code,404)
+        self.client.force_login(self.users['student'])
+        self.assertEqual(self.client.get(self.root+path+'image/').status_code,403)
+        self.client.force_login(self.users['faculty'])
+        self.post(root,{'number':2,'image':image('black')},403)
+        response=self.client.get(self.root+path+'image/')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response['Content-Type'],'image/jpeg')
+        self.assertEqual(response['Cache-Control'],'private, no-store')
+        self.assertTrue(response.content.startswith(b'\\xff\\xd8'))
+        self.post(path+'annotations/',{'x':10001,'y':0,'note':'Outside page'},400)
+        self.post(path+'annotations/',{'x':4000,'y':5000,'note':'Check calculation'})
+        self.post('evaluation/score/',{'evaluation':book,'question':q,'marks':84})
+        self.post('evaluation/submit/',{'evaluation':book},400)
+        self.client.force_login(self.users['coe'])
+        self.post(root,{'number':2,'image':image('black')})
+        self.client.force_login(self.users['faculty'])
+        self.post('evaluation/submit/',{'evaluation':book})
+        self.post(path+'annotations/',{'x':1000,'y':2000,'note':'Late edit'},400)
+        self.client.force_login(self.users['coe'])
+        self.post('evaluation/review/',{'evaluation':book,'decision':'approved'})
+        self.post('examination/state/',{'exam':self.exam.pk,'status':'published'})
+        self.assertEqual(self.client.get(self.root+path+'annotations/').json()[0]['note'],'Check calculation')
+        self.assertEqual(AnswerPage.objects.count(),2)
+        self.assertEqual(PageAnnotation.objects.count(),1)
