@@ -40,7 +40,7 @@ def normalize(encoded):
             image=out.getvalue()
             if len(image)>MAX_BYTES: raise ValueError()
             return image,im.width,im.height
-    except (ValueError, OSError, Image.DecompressionBombError, binascii.Error, UnidentifiedImageError):
+    except (ValueError, OSError, SyntaxError, OverflowError, Image.DecompressionBombError, binascii.Error, UnidentifiedImageError):
         raise ValidationError('Use a valid single-page JPEG or PNG, up to 1.5 MB and 8 megapixels.')
 
 def book_for(m,pk):
@@ -48,6 +48,10 @@ def book_for(m,pk):
 
 def editable(book):
     return book.application.exam.status=='closed' and book.status in ('assigned','returned')
+
+def check_read(m,book):
+    if m.role=='faculty' and not editable(book):
+        raise PermissionDenied('Submitted answer pages are restricted to the controller.')
 
 def metadata(page):
     return {'id':page.pk,'number':page.number,'width':page.width,'height':page.height,'sha256':page.sha256}
@@ -57,6 +61,7 @@ def pages(request,slug,pk):
     m=member(request,slug,['admin','coe','faculty'])
     if request.method=='GET':
         b=book_for(m,pk)
+        check_read(m,b)
         response=Response({'expected_pages':b.expected_pages,'status':b.status,'editable':editable(b),'pages':list(b.pages.order_by('number').values('id','number','width','height','sha256'))})
         response['Cache-Control']='private, no-store'
         return response
@@ -80,6 +85,7 @@ def pages(request,slug,pk):
 def image_view(request,slug,pk,page_id):
     m=member(request,slug,['admin','coe','faculty'])
     b=book_for(m,pk)
+    check_read(m,b)
     page=get(b.pages.all(),page_id)
     response=HttpResponse(bytes(page.image),content_type='image/jpeg')
     response['Cache-Control']='private, no-store'
@@ -92,6 +98,7 @@ def annotations(request,slug,pk,page_id):
     m=member(request,slug,['admin','coe','faculty'])
     if request.method=='GET':
         b=book_for(m,pk)
+        check_read(m,b)
         page=get(b.pages.all(),page_id)
         response=Response(list(page.annotations.order_by('pk').values('id','x','y','note','created_at')))
         response['Cache-Control']='private, no-store'
