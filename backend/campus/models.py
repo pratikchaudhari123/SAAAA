@@ -649,3 +649,38 @@ class ExaminationSeat(models.Model):
     serial=models.UUIDField(default=uuid.uuid4,unique=True,editable=False)
     class Meta:
         constraints=[models.UniqueConstraint(fields=['schedule','room','seat_number'],name='unique_examination_seat'),models.CheckConstraint(condition=models.Q(seat_number__gt=0),name='positive_examination_seat')]
+
+class GatewayOrder(models.Model):
+    account=models.ForeignKey(FeeAccount,on_delete=models.PROTECT)
+    created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    reference=models.UUIDField(default=uuid.uuid4,unique=True,editable=False)
+    amount_paise=models.PositiveBigIntegerField()
+    provider_order=models.CharField(max_length=80,unique=True)
+    provider_payment=models.CharField(max_length=80,null=True,blank=True,unique=True)
+    status=models.CharField(max_length=20,choices=[('created','Created'),('captured','Test capture verified'),('expired','Expired locally')],default='created')
+    created_at=models.DateTimeField(auto_now_add=True)
+    verified_at=models.DateTimeField(null=True,blank=True)
+
+class TallySnapshot(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    company=models.CharField(max_length=200)
+    rows=models.JSONField(default=list)
+    sha256=models.CharField(max_length=64)
+    created_at=models.DateTimeField(auto_now_add=True)
+
+class RequestAudit(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    method=models.CharField(max_length=10)
+    path=models.CharField(max_length=500)
+    ip=models.GenericIPAddressField(null=True,blank=True)
+    status=models.PositiveSmallIntegerField()
+    created_at=models.DateTimeField(auto_now_add=True)
+
+class SupportEscalation(models.Model):
+    ticket=models.ForeignKey(SupportTicket,on_delete=models.PROTECT,related_name='escalations')
+    kind=models.CharField(max_length=20,choices=[('response','Response overdue'),('resolution','Resolution overdue')])
+    created_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['ticket','kind'],name='unique_support_escalation')]

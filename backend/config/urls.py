@@ -63,3 +63,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/learning/attachments/<int:pk>
 
 from campus import support, accreditation, exam_preparation
 urlpatterns += [path('api/institutions/<slug:slug>/support/',support.workspace),path('api/institutions/<slug:slug>/support/<str:action>/',support.action),path('api/institutions/<slug:slug>/accreditation/',accreditation.workspace),path('api/institutions/<slug:slug>/accreditation/<str:action>/',accreditation.action),path('api/institutions/<slug:slug>/exam-preparation/',exam_preparation.workspace),path('api/institutions/<slug:slug>/exam-preparation/<str:action>/',exam_preparation.action)]
+
+from campus import provider_integrations,security_audit
+urlpatterns += [path('api/institutions/<slug:slug>/provider-integrations/',provider_integrations.workspace),path('api/institutions/<slug:slug>/provider-integrations/<str:action>/',provider_integrations.action),path('api/institutions/<slug:slug>/security-audit/',security_audit.workspace)]

@@ -34,7 +34,7 @@ def scoped(m):
     q=SupportTicket.objects.filter(institution=m.institution)
     return q if m.role=='admin' else q.filter(Q(requester=m)|Q(assignee=m))
 def view(r,now):
-    return {'id':r.pk,'reference':str(r.reference),'title':r.title,'description':r.description,'category':r.category,'status':r.status,'requester':r.requester.user.username,'assignee':r.assignee.user.username if r.assignee_id else None,'requester_id':r.requester_id,'assignee_id':r.assignee_id,'created_at':r.created_at,'response_due':r.response_due,'resolution_due':r.resolution_due,'responded_at':r.responded_at,'resolved_at':r.resolved_at,'response_breached':(r.responded_at or now)>r.response_due,'resolution_breached':(r.resolved_at or now)>r.resolution_due,'events':list(r.events.order_by('pk').values('action','note','actor__user__username','created_at'))}
+    return {'id':r.pk,'reference':str(r.reference),'title':r.title,'description':r.description,'category':r.category,'status':r.status,'requester':r.requester.user.username,'assignee':r.assignee.user.username if r.assignee_id else None,'requester_id':r.requester_id,'assignee_id':r.assignee_id,'created_at':r.created_at,'response_due':r.response_due,'resolution_due':r.resolution_due,'responded_at':r.responded_at,'resolved_at':r.resolved_at,'response_breached':(r.responded_at or now)>r.response_due,'resolution_breached':(r.resolved_at or now)>r.resolution_due,'escalations':list(r.escalations.values('kind','created_at')),'events':list(r.events.order_by('pk').values('action','note','actor__user__username','created_at'))}
 @api_view(['GET'])
 def workspace(request,slug):
     m=member(request,slug,ROLES)
@@ -47,6 +47,10 @@ def workspace(request,slug):
 @api_view(['POST'])
 def action(request,slug,action):
     m=member(request,slug,ROLES)
+    if action=='scan':
+        if m.role!='admin':raise PermissionDenied()
+        from .escalations import scan
+        return Response({'created':scan(m.institution)},status=201)
     schemas={'create':New,'assign':Assign,'respond':Update,'comment':Update,'resolve':Update,'close':Update}
     if action not in schemas:raise NotFound()
     d=parse(schemas[action],request)
