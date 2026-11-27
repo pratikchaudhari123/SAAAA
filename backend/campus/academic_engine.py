@@ -131,6 +131,8 @@ def academic_action(request,slug,action):
                 if count>=o.course.program.intake: raise ValidationError('Program intake limit reached for this offering.')
                 if LectureSession.objects.filter(offering=o,room__capacity__lte=count).exists(): raise ValidationError('Enrollment exceeds an assigned room capacity.')
                 if LectureSession.objects.filter(offering=o,starts__lte=timezone.now()).exists(): raise ValidationError('Enrollment is locked after the first scheduled session starts.')
+                for scheduled in LectureSession.objects.filter(offering=o):
+                    if LectureSession.objects.filter(offering__enrollments__student=s,starts__lt=scheduled.ends,ends__gt=scheduled.starts).exclude(offering=o).exists(): raise ValidationError('Student has another scheduled lecture during this time.')
                 row=CourseEnrollment.objects.create(offering=o,student=s)
             elif action=='session':
                 o=get(offerings(m),d['offering'])
