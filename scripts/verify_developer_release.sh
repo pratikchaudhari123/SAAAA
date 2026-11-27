@@ -24,6 +24,7 @@ echo "===== BACKEND DEPENDENCY AND MODEL CHECK ====="
 if ! dc exec -T api python -c 'import PIL' </dev/null; then
   dc exec -T api python -m pip install 'Pillow>=11.3,<13' </dev/null
 fi
+dc exec -T api python -m compileall -q campus config manage.py </dev/null
 dc exec -T api python manage.py check </dev/null
 dc exec -T api python manage.py makemigrations campus </dev/null
 dc exec -T api python manage.py makemigrations --check --dry-run </dev/null
