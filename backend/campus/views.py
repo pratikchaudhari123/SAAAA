@@ -66,3 +66,10 @@ class StudentList(generics.ListCreateAPIView):
                 AuditEvent.objects.create(institution=member.institution,actor=self.request.user,action='student.create',target=student.student_id)
         except IntegrityError:
             raise ValidationError({'student_id':'Student ID already exists in this institution.'})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def session_status(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated':False})
+    return JsonResponse({'authenticated':True,'username':request.user.get_username(),'institutions':list(Membership.objects.filter(user=request.user).values('institution__slug','institution__name','role'))})
