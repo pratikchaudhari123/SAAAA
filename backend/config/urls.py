@@ -43,3 +43,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/alumni/',alumni.workspace),pa
 
 from campus import learning
 urlpatterns += [path('api/institutions/<slug:slug>/learning/',learning.workspace),path('api/institutions/<slug:slug>/learning/<str:action>/',learning.action)]
+
+from campus import ledger
+urlpatterns += [path('api/institutions/<slug:slug>/ledger/',ledger.workspace),path('api/institutions/<slug:slug>/ledger/activate/',ledger.activate),path('api/institutions/<slug:slug>/ledger/manual/',ledger.manual)]

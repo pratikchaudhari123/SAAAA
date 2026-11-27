@@ -48,6 +48,7 @@ class FeeAccount(models.Model):
 class FeeReceipt(models.Model):
     account = models.ForeignKey(FeeAccount,on_delete=models.PROTECT,related_name='receipts')
     reference = models.UUIDField(unique=True)
+    request_key = models.UUIDField(null=True,blank=True,unique=True,editable=False)
     amount = models.DecimalField(max_digits=12,decimal_places=2)
     method = models.CharField(max_length=20,choices=[('cash','Cash'),('bank','Bank transfer')])
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
@@ -393,3 +394,35 @@ class QuizAttempt(models.Model):
     submitted_at=models.DateTimeField(auto_now_add=True)
     class Meta:
         constraints=[models.UniqueConstraint(fields=['quiz','enrollment'],name='unique_learning_quiz_attempt')]
+
+class LedgerConfiguration(models.Model):
+    institution=models.OneToOneField(Institution,on_delete=models.PROTECT)
+    activated_at=models.DateTimeField(auto_now_add=True)
+    activated_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+
+class LedgerAccount(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    code=models.CharField(max_length=30)
+    name=models.CharField(max_length=150)
+    category=models.CharField(max_length=20,choices=[('asset','Asset'),('liability','Liability'),('equity','Equity'),('income','Income'),('expense','Expense')])
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['institution','code'],name='unique_ledger_account_code')]
+
+class LedgerJournal(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    reference=models.UUIDField(default=uuid.uuid4,unique=True,editable=False)
+    source_key=models.CharField(max_length=100)
+    day=models.DateField()
+    description=models.CharField(max_length=300)
+    actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    created_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['institution','source_key'],name='unique_ledger_source')]
+
+class LedgerLine(models.Model):
+    journal=models.ForeignKey(LedgerJournal,on_delete=models.PROTECT,related_name='lines')
+    account=models.ForeignKey(LedgerAccount,on_delete=models.PROTECT)
+    debit=models.DecimalField(max_digits=16,decimal_places=2,default=0)
+    credit=models.DecimalField(max_digits=16,decimal_places=2,default=0)
+    class Meta:
+        constraints=[models.CheckConstraint(condition=(models.Q(debit__gt=0,credit=0)|models.Q(credit__gt=0,debit=0)),name='ledger_line_one_side')]

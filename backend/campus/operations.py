@@ -8,7 +8,8 @@ from rest_framework import serializers
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import PermissionDenied, ValidationError, NotFound
 from rest_framework.response import Response
-from .models import Membership, Student, AuditEvent, AttendanceEntry, FeeAccount, FeeReceipt, HostelBed, HostelCheck
+from . import ledger
+from .models import Institution, Membership, Student, AuditEvent, AttendanceEntry, FeeAccount, FeeReceipt, HostelBed, HostelCheck
 
 def access(request,slug,role):
     m=Membership.objects.filter(user=request.user,institution__slug=slug).first()
@@ -42,6 +43,7 @@ class Receipt(serializers.Serializer):
     account=serializers.IntegerField(min_value=1)
     amount=serializers.DecimalField(max_digits=12,decimal_places=2,min_value=Decimal('0.01'))
     method=serializers.ChoiceField(choices=['cash','bank'])
+    request_key=serializers.UUIDField(required=False)
 
 class Bed(serializers.Serializer):
     code=serializers.CharField(max_length=50)
@@ -76,9 +78,11 @@ def fees(request,slug):
     if request.method=='POST':
         d=validated(Charge,request)
         with transaction.atomic():
+            Institution.objects.select_for_update().get(pk=m.institution_id)
             s=student(m,d.pop('student_id'))
             account,created=FeeAccount.objects.get_or_create(student=s,period=d['period'],defaults={'assessed':d['assessed']})
             if not created: raise ValidationError('Fee already assessed for this period.')
+            ledger.assess(m,account)
             audit(m,'fee.assess',account.pk)
         return Response(fee_data(account),status=201)
     return Response([fee_data(a) for a in FeeAccount.objects.filter(student__institution=m.institution).select_related('student').order_by('-pk')[:500]])
@@ -89,11 +93,19 @@ def receipts(request,slug):
     if request.method=='POST':
         d=validated(Receipt,request)
         with transaction.atomic():
+            Institution.objects.select_for_update().get(pk=m.institution_id)
             a=FeeAccount.objects.select_for_update().filter(pk=d['account'],student__institution=m.institution).first()
             if not a: raise NotFound()
+            key=d.get('request_key')
+            if key:
+                old=FeeReceipt.objects.filter(request_key=key).first()
+                if old:
+                    if old.account_id!=a.pk or old.amount!=d['amount'] or old.method!=d['method']: raise ValidationError('Payment request key already used.')
+                    return Response({'reference':str(old.reference),'amount':str(old.amount),'duplicate':True})
             paid=a.receipts.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
             if d['amount']>a.assessed-paid: raise ValidationError('Amount exceeds outstanding balance.')
-            r=FeeReceipt.objects.create(account=a,reference=uuid4(),amount=d['amount'],method=d['method'],recorded_by=m.user)
+            r=FeeReceipt.objects.create(account=a,reference=uuid4(),amount=d['amount'],method=d['method'],recorded_by=m.user,request_key=key)
+            ledger.receive(m,r)
             audit(m,'fee.receipt',r.reference)
         return Response({'reference':str(r.reference),'amount':str(r.amount)},status=201)
     return Response(list(FeeReceipt.objects.filter(account__student__institution=m.institution).order_by('-pk').values('reference','account__student__student_id','amount','method','created_at','recorded_by__username')[:500]))
