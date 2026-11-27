@@ -4,3 +4,5 @@ urlpatterns = [path('api/health/',views.health),path('api/csrf/',views.csrf),pat
 
 from campus import workflows
 urlpatterns += [path('api/institutions/<slug:slug>/students/<str:student_id>/admission/',workflows.admission_transition),path('api/institutions/<slug:slug>/audit/',workflows.audit_log)]
+
+urlpatterns += [path('api/session/',views.session_status)]
