@@ -249,3 +249,43 @@ class PageAnnotation(models.Model):
     created_at=models.DateTimeField(auto_now_add=True)
     class Meta:
         constraints=[models.CheckConstraint(condition=models.Q(x__lte=10000,y__lte=10000),name='valid_page_annotation_position')]
+
+class Employee(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    department=models.ForeignKey(Department,on_delete=models.PROTECT)
+    membership=models.OneToOneField(Membership,on_delete=models.PROTECT,null=True,blank=True)
+    code=models.CharField(max_length=50)
+    name=models.CharField(max_length=150)
+    designation=models.CharField(max_length=100)
+    category=models.CharField(max_length=20,choices=[('teaching','Teaching'),('non_teaching','Non-teaching'),('contract','Contractual')])
+    joined_on=models.DateField()
+    active=models.BooleanField(default=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['institution','code'],name='unique_employee_code')]
+
+class EmployeeDeviceIdentity(models.Model):
+    source=models.ForeignKey(IntegrationSource,on_delete=models.PROTECT)
+    employee=models.ForeignKey(Employee,on_delete=models.PROTECT)
+    subject_ref=models.CharField(max_length=100)
+    effective_from=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['source','subject_ref'],name='unique_employee_device_identity'),models.UniqueConstraint(fields=['source','employee'],name='unique_employee_per_source')]
+
+class EmployeePunch(models.Model):
+    event=models.OneToOneField(IntegrationEvent,on_delete=models.PROTECT,related_name='employee_punch')
+    employee=models.ForeignKey(Employee,on_delete=models.PROTECT)
+    mapped_at=models.DateTimeField(auto_now_add=True)
+
+class EmployeeLeave(models.Model):
+    employee=models.ForeignKey(Employee,on_delete=models.PROTECT)
+    category=models.CharField(max_length=40)
+    starts=models.DateField()
+    ends=models.DateField()
+    reason=models.CharField(max_length=300)
+    status=models.CharField(max_length=20,choices=[('pending','Pending'),('approved','Approved'),('rejected','Rejected'),('withdrawn','Withdrawn')],default='pending')
+    created_at=models.DateTimeField(auto_now_add=True)
+    reviewed_at=models.DateTimeField(null=True,blank=True)
+    reviewed_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,null=True,blank=True)
+    review_note=models.CharField(max_length=300,blank=True)
+    class Meta:
+        constraints=[models.CheckConstraint(condition=models.Q(ends__gte=models.F('starts')),name='valid_employee_leave_dates')]
