@@ -30,3 +30,37 @@ class IsolationTests(TestCase):
         response=self.client.get('/api/health/')
         self.assertEqual(response.status_code,200)
         self.assertEqual(response.json()['database'],'connected')
+
+    def test_session_status(self):
+        self.assertTrue(self.client.get('/api/session/').json()['authenticated'])
+        self.client.logout()
+        self.assertFalse(self.client.get('/api/session/').json()['authenticated'])
+
+    def test_live_operations(self):
+        from django.utils import timezone
+        from .models import AttendanceEntry, FeeAccount, FeeReceipt, HostelBed, HostelCheck
+        Student.objects.create(institution=self.a,student_id='S1',name='Example',email='s1@example.invalid',program='Engineering',year=1,status='Active')
+        base='/api/institutions/a/operations/'
+        def post(area,data):
+            return self.client.post(base+area+'/',data,content_type='application/json')
+        entry={'student_id':'S1','day':str(timezone.localdate()),'course':'DEMO101','present':True}
+        self.assertEqual(post('attendance',entry).status_code,201)
+        self.assertEqual(post('attendance',{**entry,'present':False}).status_code,201)
+        self.assertEqual(AttendanceEntry.objects.count(),1)
+        self.assertFalse(AttendanceEntry.objects.get().present)
+        self.assertEqual(post('fees',{'student_id':'S1','period':'2026-27','assessed':'1000.00'}).status_code,201)
+        account=FeeAccount.objects.get()
+        self.assertEqual(post('receipts',{'account':account.pk,'amount':'400.00','method':'cash'}).status_code,201)
+        self.assertEqual(post('receipts',{'account':account.pk,'amount':'601.00','method':'bank'}).status_code,400)
+        self.assertEqual(FeeReceipt.objects.count(),1)
+        self.assertEqual(self.client.get(base+'fees/').json()[0]['balance'],'600.00')
+        self.assertEqual(post('beds',{'code':'H1-A','student_id':'S1'}).status_code,201)
+        self.assertEqual(post('beds',{'code':'H1-B','student_id':'S1'}).status_code,400)
+        self.assertEqual(HostelBed.objects.count(),1)
+        self.assertEqual(post('hostel_checks',{'code':'H1-A','status':'present'}).status_code,201)
+        self.assertEqual(HostelCheck.objects.count(),1)
+        self.assertGreaterEqual(AuditEvent.objects.count(),6)
+        self.assertEqual(self.client.get('/api/institutions/b/operations/fees/').status_code,403)
+        Membership.objects.filter(user=self.user).update(role='viewer')
+        self.assertEqual(self.client.get(base+'fees/').status_code,403)
+        self.assertEqual(post('attendance',entry).status_code,403)
