@@ -6,11 +6,12 @@ class Institution(models.Model):
 class Membership(models.Model):
     institution = models.ForeignKey(Institution,on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE)
-    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal')])
+    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal'),('student','Student')])
     class Meta:
         constraints = [models.UniqueConstraint(fields=['institution','user'],name='unique_campus_member')]
 class Student(models.Model):
     institution = models.ForeignKey(Institution,on_delete=models.PROTECT)
+    portal_user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,null=True,blank=True,related_name='campus_student_profiles')
     student_id = models.CharField(max_length=50)
     name = models.CharField(max_length=200)
     email = models.EmailField()
@@ -18,7 +19,7 @@ class Student(models.Model):
     year = models.PositiveSmallIntegerField()
     status = models.CharField(max_length=20,choices=[('Active','Active'),('Pending','Pending'),('On Hold','On Hold')],default='Pending')
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['institution','student_id'],name='unique_campus_student')]
+        constraints = [models.UniqueConstraint(fields=['institution','student_id'],name='unique_campus_student'),models.UniqueConstraint(fields=['institution','portal_user'],name='unique_student_portal_user')]
 class AuditEvent(models.Model):
     institution = models.ForeignKey(Institution,on_delete=models.PROTECT)
     actor = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
