@@ -147,12 +147,19 @@ def academic_action(request,slug,action):
                 s=get(sessions(m),d['session'])
                 e=get(enrollments(m).filter(offering=s.offering,student__status='Active'),d['enrollment'])
                 if s.starts>timezone.now(): raise ValidationError('Cannot record attendance before session starts.')
-                if CourseExam.objects.filter(offering=s.offering,status__in=['closed','published']).exists(): raise ValidationError('Attendance locked after exam applications close.')
                 row,_=SessionAttendance.objects.update_or_create(session=s,enrollment=e,defaults={'present':d['present'],'actor':m.user})
             log(m,'academic.'+action,row)
     except IntegrityError:
         raise ValidationError('Duplicate or invalid academic record.')
     return Response({'id':row.pk},status=201)
+
+def eligible(exam,enrollment):
+    if enrollment.student.status!='Active': return False
+    if not exam.min_attendance: return True
+    completed=LectureSession.objects.filter(offering=exam.offering,ends__lte=timezone.now())
+    total=completed.count()
+    marks=SessionAttendance.objects.filter(enrollment=enrollment,session__in=completed)
+    return bool(total and marks.count()==total and marks.filter(present=True).count()*100>=exam.min_attendance*total)
 
 @api_view(['GET'])
 def examination(request,slug):
@@ -182,14 +189,12 @@ def exam_action(request,slug,action):
                 exam=get(exams(m),d['exam'])
                 e=get(enrollments(m).filter(offering=exam.offering,student__status='Active'),d['enrollment'])
                 if exam.status!='open' or exam.day<timezone.localdate(): raise ValidationError('Applications are closed.')
-                if exam.min_attendance:
-                    total=LectureSession.objects.filter(offering=exam.offering,ends__lte=timezone.now()).count()
-                    marks=SessionAttendance.objects.filter(enrollment=e,session__offering=exam.offering,session__ends__lte=timezone.now())
-                    if not total or marks.count()!=total or marks.filter(present=True).count()*100<exam.min_attendance*total: raise ValidationError('Attendance eligibility not met or attendance records incomplete.')
+                if not eligible(exam,e): raise ValidationError('Attendance eligibility not met or attendance records incomplete.')
                 row=ExamApplication.objects.create(exam=exam,enrollment=e)
             elif action=='state':
                 row=get(exams(m),d['exam'])
-                if d['status']=='closed' and row.status=='open': pass
+                if d['status']=='closed' and row.status=='open':
+                    if any(not eligible(row,a.enrollment) for a in row.applications.select_related('enrollment__student')): raise ValidationError('One or more applications no longer meet eligibility. Review attendance before closing.')
                 elif d['status']=='published' and row.status=='closed':
                     if row.day>timezone.localdate() or not row.applications.exists() or row.applications.filter(marks__isnull=True).exists(): raise ValidationError('Exam date or incomplete marks prevent publication.')
                 else: raise ValidationError('Invalid examination transition.')
