@@ -570,3 +570,20 @@ class CertificateClearance(models.Model):
     updated_at=models.DateTimeField(auto_now=True)
     class Meta:
         constraints=[models.UniqueConstraint(fields=['request','unit'],name='unique_certificate_clearance')]
+
+class AcademicCalendarDay(models.Model):
+    period=models.ForeignKey(AcademicPeriod,on_delete=models.PROTECT)
+    day=models.DateField()
+    title=models.CharField(max_length=150)
+    kind=models.CharField(max_length=20,choices=[('holiday','Holiday'),('event','Event'),('academic','Academic milestone')])
+    blocks_teaching=models.BooleanField(default=False)
+    created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['period','day'],name='unique_academic_calendar_day')]
+
+class LectureTeachingPlan(models.Model):
+    session=models.OneToOneField(LectureSession,on_delete=models.PROTECT)
+    topics=models.TextField()
+    delivery_note=models.TextField(blank=True)
+    updated_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    updated_at=models.DateTimeField(auto_now=True)

@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import PermissionDenied, ValidationError, NotFound
 from rest_framework.response import Response
 from .models import (Institution, Membership, Student, AcademicCourse, AcademicPeriod, Classroom,
-    CourseOffering, CourseEnrollment, LectureSession, SessionAttendance, CourseExam, ExamApplication, AuditEvent)
+    CourseOffering, CourseEnrollment, LectureSession, SessionAttendance, CourseExam, ExamApplication, AuditEvent, AcademicCalendarDay)
 
 class RoomInput(serializers.Serializer):
     code=serializers.CharField(max_length=40)
@@ -138,12 +138,7 @@ def academic_action(request,slug,action):
                 o=get(offerings(m),d['offering'])
                 room=get(Classroom.objects.filter(institution=m.institution),d['room'])
                 starts,ends=d['starts'],d['ends']
-                if ends<=starts or timezone.localdate(starts)!=timezone.localdate(ends): raise ValidationError('Choose valid start and end times on the same day.')
-                if not o.period.starts<=timezone.localdate(starts)<=o.period.ends: raise ValidationError('Session falls outside academic period.')
-                if o.enrollments.count()>room.capacity: raise ValidationError('Classroom capacity exceeded.')
-                conflicts=LectureSession.objects.filter(offering__course__program__department__institution=m.institution,starts__lt=ends,ends__gt=starts)
-                if conflicts.filter(Q(room=room)|Q(offering__faculty=o.faculty)|Q(offering__course__program=o.course.program,offering__batch=o.batch)).exists(): raise ValidationError('Room, faculty or batch already scheduled.')
-                if conflicts.filter(offering__enrollments__student_id__in=o.enrollments.values('student_id')).exists(): raise ValidationError('An enrolled student already has a lecture during this time.')
+                validate_session(m,o,room,starts,ends)
                 row=LectureSession.objects.create(offering=o,room=room,starts=starts,ends=ends)
             else:
                 s=get(sessions(m),d['session'])
@@ -154,6 +149,21 @@ def academic_action(request,slug,action):
     except IntegrityError:
         raise ValidationError('Duplicate or invalid academic record.')
     return Response({'id':row.pk},status=201)
+
+def validate_session(m,o,room,starts,ends,exclude=None):
+    if ends<=starts or timezone.localdate(starts)!=timezone.localdate(ends):
+        raise ValidationError('Choose valid start and end times on the same day.')
+    if not o.period.starts<=timezone.localdate(starts)<=o.period.ends:
+        raise ValidationError('Session falls outside academic period.')
+    if AcademicCalendarDay.objects.filter(period=o.period,day=timezone.localdate(starts),blocks_teaching=True).exists():
+        raise ValidationError('Teaching is blocked on this calendar date.')
+    if o.enrollments.count()>room.capacity: raise ValidationError('Classroom capacity exceeded.')
+    conflicts=LectureSession.objects.filter(offering__course__program__department__institution=m.institution,starts__lt=ends,ends__gt=starts)
+    if exclude is not None: conflicts=conflicts.exclude(pk=exclude)
+    if conflicts.filter(Q(room=room)|Q(offering__faculty=o.faculty)|Q(offering__course__program=o.course.program,offering__batch=o.batch)).exists():
+        raise ValidationError('Room, faculty or batch already scheduled.')
+    if conflicts.filter(offering__enrollments__student_id__in=o.enrollments.values('student_id')).exists():
+        raise ValidationError('An enrolled student already has a lecture during this time.')
 
 def eligible(exam,enrollment):
     if enrollment.student.status!='Active': return False

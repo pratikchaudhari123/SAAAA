@@ -55,3 +55,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/registration/',registration.w
 
 from campus import permissions, documents
 urlpatterns += [path('api/institutions/<slug:slug>/permissions/',permissions.workspace),path('api/institutions/<slug:slug>/permissions/<str:action>/',permissions.action),path('api/institutions/<slug:slug>/documents/',documents.workspace),path('api/institutions/<slug:slug>/documents/<str:action>/',documents.action)]
+
+from campus import timetable
+urlpatterns += [path('api/institutions/<slug:slug>/timetable/',timetable.workspace),path('api/institutions/<slug:slug>/timetable/<str:action>/',timetable.action)]
