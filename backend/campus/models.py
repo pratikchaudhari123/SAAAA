@@ -210,6 +210,7 @@ class ExamQuestion(models.Model):
 class BookEvaluation(models.Model):
     application=models.OneToOneField(ExamApplication,on_delete=models.PROTECT,related_name='evaluation')
     book_ref=models.UUIDField(default=uuid.uuid4,unique=True,editable=False)
+    expected_pages=models.PositiveSmallIntegerField(null=True,blank=True)
     examiner=models.ForeignKey(Membership,on_delete=models.PROTECT)
     status=models.CharField(max_length=20,choices=[('assigned','Assigned'),('submitted','Submitted'),('returned','Returned'),('approved','Approved')],default='assigned')
     assigned_at=models.DateTimeField(auto_now_add=True)
@@ -226,3 +227,25 @@ class QuestionScore(models.Model):
     updated_at=models.DateTimeField(auto_now=True)
     class Meta:
         constraints=[models.UniqueConstraint(fields=['evaluation','question'],name='unique_question_score')]
+
+class AnswerPage(models.Model):
+    evaluation=models.ForeignKey(BookEvaluation,on_delete=models.PROTECT,related_name='pages')
+    number=models.PositiveSmallIntegerField()
+    image=models.BinaryField(editable=False)
+    sha256=models.CharField(max_length=64,editable=False)
+    width=models.PositiveIntegerField()
+    height=models.PositiveIntegerField()
+    uploaded_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    uploaded_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['evaluation','number'],name='unique_answer_page'),models.CheckConstraint(condition=models.Q(number__gt=0),name='positive_answer_page')]
+
+class PageAnnotation(models.Model):
+    page=models.ForeignKey(AnswerPage,on_delete=models.PROTECT,related_name='annotations')
+    x=models.PositiveSmallIntegerField()
+    y=models.PositiveSmallIntegerField()
+    note=models.CharField(max_length=300)
+    actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    created_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.CheckConstraint(condition=models.Q(x__lte=10000,y__lte=10000),name='valid_page_annotation_position')]
