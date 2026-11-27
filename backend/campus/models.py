@@ -108,3 +108,33 @@ class AcademicPeriod(models.Model):
     active = models.BooleanField(default=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=['institution','code'],name='unique_academic_period'),models.CheckConstraint(condition=models.Q(ends__gte=models.F('starts')),name='valid_academic_period')]
+
+class IntegrationSource(models.Model):
+    institution = models.ForeignKey(Institution,on_delete=models.PROTECT)
+    name = models.CharField(max_length=100)
+    purpose = models.CharField(max_length=20,choices=[('classroom','Classroom'),('employee','Employee'),('exam','Examination'),('hostel','Hostel')])
+    token_digest = models.CharField(max_length=64,unique=True,editable=False)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_received_at = models.DateTimeField(null=True,blank=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['institution','name'],name='unique_integration_source_name')]
+
+class IntegrationEvent(models.Model):
+    source = models.ForeignKey(IntegrationSource,on_delete=models.PROTECT,related_name='events')
+    external_id = models.CharField(max_length=100)
+    subject_ref = models.CharField(max_length=100)
+    event_type = models.CharField(max_length=20,choices=[('attendance','Attendance'),('in','Entry'),('out','Exit')])
+    occurred_at = models.DateTimeField()
+    received_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['source','external_id'],name='unique_integration_event')]
+        indexes = [models.Index(fields=['source','-received_at'],name='integration_received_idx')]
+
+class StudentImportBatch(models.Model):
+    institution = models.ForeignKey(Institution,on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    row_count = models.PositiveIntegerField()
+    created_count = models.PositiveIntegerField()
+    skipped_count = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
