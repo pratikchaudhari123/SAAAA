@@ -24,3 +24,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/academic-engine/',academic_en
 
 from campus import account_setup
 urlpatterns += [path('api/institutions/<slug:slug>/accounts/',account_setup.accounts)]
+
+from campus import evaluation
+urlpatterns += [path('api/institutions/<slug:slug>/evaluation/',evaluation.workspace),path('api/institutions/<slug:slug>/evaluation/<str:action>/',evaluation.action)]
