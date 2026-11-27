@@ -1,0 +1,51 @@
+# SAAAA — team evaluation handover
+
+This is a synthetic, local evaluation prototype, not a tender-compliant production delivery. Use the development branch only. Do not expose this development server to the internet or import actual college records without authorization.
+
+## Existing developer installation
+
+Use the existing saaaa-erp Docker project, database backup and migrations. Do not run the new team compose stack on a Mac already using port 8100. Preserve all existing data.
+
+## Fresh team clone (ports 8100 and 5175 must be free)
+
+Prerequisites: Git, Node/npm, Python 3, Docker with Compose. Run from a new clone of the development branch.
+
+```bash
+git clone --branch feat/tender-web-portal-foundation https://github.com/pratikchaudhari123/SAAAA.git
+cd SAAAA
+bash scripts/team_setup.sh
+```
+
+Open http://127.0.0.1:5175/ and use Sign in to SAAAA. The script prints a private credentials file path. Do not share the file in chat or commit it. Every run of the seed command creates a new isolated synthetic institution; do not repeatedly seed unnecessarily.
+
+## Demonstration sequence
+
+1. Administrator: review live dashboard; review department, program, period and course masters.
+2. Academics: inspect course offering, classroom, enrolled students and lecture schedule. Attempt duplicate or conflicting scheduling; it must be rejected.
+3. Faculty: open assigned course schedule, record attendance by individual lecture. Other faculty offerings must not be visible in the new academic endpoint.
+4. Student: sign in with assigned student account; see own fees, hostel and legacy attendance under My campus; see own course schedule and session attendance under Academics.
+5. Examination controller: open Examinations, inspect preconfigured regular exam, verify application, close application window, enter marks (0–100 in the sample), publish only after all applications have marks.
+6. Student: verify published result appears; marks must not be visible before publication.
+7. Finance/warden/admissions: use verified legacy operational workflows.
+8. Administrator: use Connected systems to register a synthetic source and validate a CSV import. The inbox is staged; no actual biometric validation occurs.
+9. Principal: refresh dashboard to inspect scheduled classes, exam status, fees and hostel metrics.
+
+Sample thresholds and dates are synthetic policies, not actual GCOEA rules.
+
+## Verification status
+
+Baseline 6499654: user's Mac reported 17 backend tests, 3 frontend metadata tests, 92 HTTP acceptance checks and 24 Connect acceptance checks, all passing; 16 institutional tables.
+
+New release: 7 new models and 2 new backend test methods. Expected 23 institutional tables and 19 backend tests. New release is not yet verified on the user's Mac. Frontend metadata tests do not exercise browser buttons. The two prior live scripts assume the existing saaaa-erp-api-1 container and gcoea-demo institution; do not run them unchanged on the fresh team stack.
+
+## Remaining high-priority engineering work
+
+- Complete custom multi-role permission engine, department-level restrictions across legacy APIs, account lifecycle and recovery.
+- Recurring timetable, holiday calendar, batch/sub-batch configuration, syllabus and LMS. Current sessions are explicitly scheduled, not automatically generated.
+- Biometric identity mapping, authorized hardware adapters and event-to-session processing; no external device connected.
+- Exam fees, hall tickets, automatic exam timetable/seating, question papers, answer-sheet scanning, encrypted identifiers, examiner assignment, question-level marks, digital annotation, moderation, revaluation and CO–PO reports.
+- Full HR, financial accounting, placement, alumni, document issuance and accreditation workflows.
+- Historical migration and provider integrations, Android/iOS, secure production deployment, backup recovery, load tests, independent security testing.
+- Migration files must be reconciled with the existing developer migration history and committed before a reproducible production release. Fresh team setup generates migrations only for an isolated new database.
+
+The college must provide approved policy definitions, authorized historical export, device inventory and vendor API/SDK access. Its actual data, hardware and software are not connected. Bidder eligibility and commercial/contractual compliance require independent review.
