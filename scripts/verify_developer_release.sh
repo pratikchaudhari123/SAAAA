@@ -26,7 +26,6 @@ if ! dc exec -T api python -c 'import PIL' </dev/null; then
 fi
 dc exec -T api python -m compileall -q campus config manage.py </dev/null
 dc exec -T api python manage.py check </dev/null
-dc exec -T api python manage.py makemigrations campus </dev/null
 dc exec -T api python manage.py makemigrations --check --dry-run </dev/null
 dc exec -T api python manage.py test campus </dev/null
 echo "===== FRONTEND CHECK ====="

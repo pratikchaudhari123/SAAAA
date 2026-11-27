@@ -164,6 +164,10 @@ def validate_session(m,o,room,starts,ends,exclude=None):
         raise ValidationError('Room, faculty or batch already scheduled.')
     if conflicts.filter(offering__enrollments__student_id__in=o.enrollments.values('student_id')).exists():
         raise ValidationError('An enrolled student already has a lecture during this time.')
+    from .models import ExaminationSeat
+    booked=ExaminationSeat.objects.filter(schedule__exam__offering__period__institution=m.institution,schedule__starts__lt=ends,schedule__ends__gt=starts)
+    if booked.filter(room=room).exists() or booked.filter(application__enrollment__student_id__in=o.enrollments.values('student_id')).exists():
+        raise ValidationError('Room or enrolled student already scheduled for an examination.')
 
 def eligible(exam,enrollment):
     if enrollment.student.status!='Active': return False
