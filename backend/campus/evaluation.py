@@ -1,4 +1,4 @@
-"""Question-wise assessment pilot. No scanned files or biometric data are stored."""
+"""Question-wise assessment pilot. Scanned pages are managed by the separate private scan endpoint."""
 from django.db import transaction, IntegrityError
 from django.db.models import Sum
 from django.utils import timezone
@@ -18,6 +18,7 @@ class QuestionInput(serializers.Serializer):
 class AssignInput(serializers.Serializer):
     application=serializers.IntegerField(min_value=1)
     examiner=serializers.IntegerField(min_value=1)
+    expected_pages=serializers.IntegerField(min_value=1,max_value=40,required=False,allow_null=True,default=None)
 class ScoreInput(serializers.Serializer):
     evaluation=serializers.IntegerField(min_value=1)
     question=serializers.IntegerField(min_value=1)
@@ -36,7 +37,7 @@ def scoped(m):
 @api_view(['GET'])
 def workspace(request,slug):
     m=member(request,slug,['admin','coe','faculty'])
-    fields=['id','book_ref','application__exam_id','application__exam__title','status','review_note','assigned_at','submitted_at','reviewed_at','examiner__user__username']
+    fields=['id','book_ref','expected_pages','application__exam_id','application__exam__title','status','review_note','assigned_at','submitted_at','reviewed_at','examiner__user__username']
     if m.role!='faculty': fields+=['application_id','application__enrollment__student__student_id']
     books=list(scoped(m).order_by('-pk').values(*fields))
     exam_ids={b['application__exam_id'] for b in books}
@@ -73,7 +74,7 @@ def action(request,slug,action):
                 if exam.status!='closed' or exam.day>timezone.localdate() or app.marks is not None: raise ValidationError('Only unmarked, closed examinations on or after their date can be assigned.')
                 if (exam.questions.aggregate(total=Sum('maximum'))['total'] or 0)!=exam.maximum: raise ValidationError('Complete the question plan before assigning.')
                 f=get(Membership.objects.filter(institution=m.institution,role='faculty',user__is_active=True),d['examiner'])
-                row=BookEvaluation.objects.create(application=app,examiner=f)
+                row=BookEvaluation.objects.create(application=app,examiner=f,expected_pages=d['expected_pages'])
             else:
                 evaluation=get(scoped(m),d['evaluation'])
                 exam=evaluation.application.exam
@@ -85,6 +86,7 @@ def action(request,slug,action):
                     row,_=QuestionScore.objects.update_or_create(evaluation=evaluation,question=q,defaults={'marks':d['marks'],'note':d['note']})
                 elif action=='submit':
                     if evaluation.status not in ('assigned','returned'): raise ValidationError('Evaluation cannot be submitted again.')
+                    if evaluation.expected_pages is not None and set(evaluation.pages.values_list('number',flat=True))!=set(range(1,evaluation.expected_pages+1)): raise ValidationError('All declared answer pages must be uploaded before submission.')
                     required=set(exam.questions.values_list('pk',flat=True))
                     actual=set(evaluation.scores.values_list('question_id',flat=True))
                     if not required or required!=actual: raise ValidationError('Score every question before submission.')
