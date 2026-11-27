@@ -15,3 +15,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/setup/<str:kind>/',platform.m
 
 from campus import student_portal
 urlpatterns += [path('api/institutions/<slug:slug>/my-campus/',student_portal.my_campus)]
+
+from campus import connect
+urlpatterns += [path('api/connect/events/',connect.ingest),path('api/institutions/<slug:slug>/connect/sources/',connect.sources),path('api/institutions/<slug:slug>/connect/sources/<int:pk>/action/',connect.source_action),path('api/institutions/<slug:slug>/connect/events/',connect.events),path('api/institutions/<slug:slug>/connect/student-import/',connect.student_import),path('api/institutions/<slug:slug>/connect/import-history/',connect.import_history)]
