@@ -30,3 +30,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/evaluation/',evaluation.works
 
 from campus import scans
 urlpatterns += [path('api/institutions/<slug:slug>/evaluation/books/<int:pk>/pages/',scans.pages),path('api/institutions/<slug:slug>/evaluation/books/<int:pk>/pages/<int:page_id>/image/',scans.image_view),path('api/institutions/<slug:slug>/evaluation/books/<int:pk>/pages/<int:page_id>/annotations/',scans.annotations)]
+
+from campus import hr
+urlpatterns += [path('api/institutions/<slug:slug>/hr/',hr.workspace),path('api/institutions/<slug:slug>/hr/<str:action>/',hr.action)]
