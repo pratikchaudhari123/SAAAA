@@ -94,7 +94,8 @@ def master_status(request,slug,kind,pk):
 
 @api_view(['GET'])
 def dashboard(request,slug):
-    m=admin(request,slug)
+    m=Membership.objects.filter(user=request.user,institution__slug=slug,role__in=['admin','principal']).first()
+    if not m: raise PermissionDenied()
     i=m.institution
     students=Student.objects.filter(institution=i)
     attendance=AttendanceEntry.objects.filter(student__institution=i,day=timezone.localdate())
@@ -102,4 +103,4 @@ def dashboard(request,slug):
     fees=FeeAccount.objects.filter(student__institution=i)
     assessed=fees.aggregate(total=Sum('assessed'))['total'] or Decimal('0.00')
     paid=FeeReceipt.objects.filter(account__student__institution=i).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-    return Response({'date':str(timezone.localdate()),'students':students.count(),'active_students':students.filter(status='Active').count(),'pending_admissions':students.filter(status='Pending').count(),'attendance_entries_today':attendance.count(),'present_entries_today':attendance.filter(present=True).count(),'fee_assessed':str(assessed),'fee_received':str(paid),'fee_outstanding':str(assessed-paid),'beds':beds.count(),'allocated_beds':beds.filter(student__isnull=False).count(),'usable_vacant_beds':beds.filter(student__isnull=True,usable=True).count(),'hostel_checks_today':HostelCheck.objects.filter(student__institution=i,day=timezone.localdate()).count(),'departments':Department.objects.filter(institution=i,active=True).count(),'programs':AcademicProgram.objects.filter(department__institution=i,active=True).count(),'courses':AcademicCourse.objects.filter(program__department__institution=i,active=True).count(),'program_breakdown':list(students.values('program').annotate(total=Count('id')).order_by('program')),'recent_activity':list(AuditEvent.objects.filter(institution=i).order_by('-created_at').values('action','target','actor__username','created_at')[:15])})
+    return Response({'date':str(timezone.localdate()),'students':students.count(),'active_students':students.filter(status='Active').count(),'pending_admissions':students.filter(status='Pending').count(),'attendance_entries_today':attendance.count(),'present_entries_today':attendance.filter(present=True).count(),'fee_assessed':str(assessed),'fee_received':str(paid),'fee_outstanding':str(assessed-paid),'beds':beds.count(),'allocated_beds':beds.filter(student__isnull=False).count(),'usable_vacant_beds':beds.filter(student__isnull=True,usable=True).count(),'hostel_checks_today':HostelCheck.objects.filter(student__institution=i,day=timezone.localdate()).count(),'departments':Department.objects.filter(institution=i,active=True).count(),'programs':AcademicProgram.objects.filter(department__institution=i,active=True).count(),'courses':AcademicCourse.objects.filter(program__department__institution=i,active=True).count(),'program_breakdown':list(students.values('program').annotate(total=Count('id')).order_by('program')),'recent_activity':[] if m.role=='principal' else list(AuditEvent.objects.filter(institution=i).order_by('-created_at').values('action','target','actor__username','created_at')[:15])})
