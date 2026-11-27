@@ -28,7 +28,46 @@ MIMES={'pdf':'application/pdf','pptx':'application/vnd.openxmlformats-officedocu
 class AttachmentInput(serializers.Serializer):
     offering=serializers.IntegerField(min_value=1)
     title=serializers.CharField(max_length=150)
-    filename=serializers.RegexField(regex=r'^[A-Za-z0-9][A-Za-z0-9 _().-]{0,148}
+    filename=serializers.RegexField(regex=r'\A[A-Za-z0-9][A-Za-z0-9 _().-]{0,148}\Z',max_length=150)
+    content=serializers.CharField(max_length=2000000)
+
+def checked_file(filename,encoded):
+    extension=filename.rsplit('.',1)[-1].lower()
+    if extension not in MIMES: raise ValidationError('Only PDF and PPTX attachments are supported.')
+    try: raw=base64.b64decode(encoded,validate=True)
+    except (ValueError,binascii.Error): raise ValidationError('Invalid attachment encoding.')
+    if not raw or len(raw)>MAX_FILE: raise ValidationError('Attachment exceeds the 1.5 MB evaluation limit.')
+    if extension=='pdf':
+        if not re.match(br'^%PDF-[12]\.\d',raw[:16]) or not raw.rstrip().endswith(b'%%EOF'):
+            raise ValidationError('Invalid PDF header or end marker.')
+        # Format gate only: not a full parser or malware scanner.
+    else:
+        try:
+            with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                entries=archive.infolist()
+                names={e.filename for e in entries}
+                if len(entries)>500 or len(names)!=len(entries) or sum(e.file_size for e in entries)>16000000:
+                    raise ValidationError('Presentation archive exceeds allowed complexity.')
+                if not {'[Content_Types].xml','ppt/presentation.xml'}.issubset(names):
+                    raise ValidationError('Presentation package structure is missing.')
+                for e in entries:
+                    name=e.filename.lower()
+                    if e.flag_bits&1 or name.startswith('/') or '\\' in name or '..' in PurePosixPath(name).parts or 'vbaproject' in name or '/embeddings/' in name or '/activex/' in name:
+                        raise ValidationError('Encrypted, unsafe-path, macro or embedded-object presentations are not allowed.')
+                if archive.testzip() is not None: raise ValidationError('Corrupt presentation package.')
+        except (zipfile.BadZipFile,RuntimeError,NotImplementedError,ValueError,OSError): raise ValidationError('Invalid presentation package.')
+    return raw,MIMES[extension]
+
+@api_view(['GET'])
+def download(request,slug,pk):
+    m=member(request,slug,['admin','faculty','student'])
+    a=get(LearningAttachment.objects.filter(resource__offering__in=courses(m)).defer('content'),pk)
+    response=FileResponse(io.BytesIO(bytes(a.content)),as_attachment=True,filename=a.filename,content_type=a.content_type)
+    response['Cache-Control']='private, no-store'
+    response['X-Content-Type-Options']='nosniff'
+    return response
+
+class Assignment(serializers.Serializer):
     offering=serializers.IntegerField(min_value=1)
     title=serializers.CharField(max_length=150)
     instructions=serializers.CharField(max_length=10000)
