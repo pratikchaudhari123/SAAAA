@@ -27,3 +27,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/accounts/',account_setup.acco
 
 from campus import evaluation
 urlpatterns += [path('api/institutions/<slug:slug>/evaluation/',evaluation.workspace),path('api/institutions/<slug:slug>/evaluation/<str:action>/',evaluation.action)]
+
+from campus import scans
+urlpatterns += [path('api/institutions/<slug:slug>/evaluation/books/<int:pk>/pages/',scans.pages),path('api/institutions/<slug:slug>/evaluation/books/<int:pk>/pages/<int:page_id>/image/',scans.image_view),path('api/institutions/<slug:slug>/evaluation/books/<int:pk>/pages/<int:page_id>/annotations/',scans.annotations)]
