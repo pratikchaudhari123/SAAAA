@@ -98,7 +98,7 @@ def receipts(request,slug):
             if not a: raise NotFound()
             key=d.get('request_key')
             if key:
-                old=FeeReceipt.objects.filter(request_key=key).first()
+                old=FeeReceipt.objects.filter(account__student__institution=m.institution,request_key=key).first()
                 if old:
                     if old.account_id!=a.pk or old.amount!=d['amount'] or old.method!=d['method']: raise ValidationError('Payment request key already used.')
                     return Response({'reference':str(old.reference),'amount':str(old.amount),'duplicate':True})

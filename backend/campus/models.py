@@ -48,13 +48,13 @@ class FeeAccount(models.Model):
 class FeeReceipt(models.Model):
     account = models.ForeignKey(FeeAccount,on_delete=models.PROTECT,related_name='receipts')
     reference = models.UUIDField(unique=True)
-    request_key = models.UUIDField(null=True,blank=True,unique=True,editable=False)
+    request_key = models.UUIDField(null=True,blank=True,editable=False)
     amount = models.DecimalField(max_digits=12,decimal_places=2)
     method = models.CharField(max_length=20,choices=[('cash','Cash'),('bank','Bank transfer')])
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
-        constraints = [models.CheckConstraint(condition=models.Q(amount__gt=0),name='positive_fee_receipt')]
+        constraints = [models.CheckConstraint(condition=models.Q(amount__gt=0),name='positive_fee_receipt'),models.UniqueConstraint(fields=['account','request_key'],name='unique_fee_receipt_request')]
 
 class HostelBed(models.Model):
     institution = models.ForeignKey(Institution,on_delete=models.PROTECT)
