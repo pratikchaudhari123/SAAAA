@@ -17,13 +17,14 @@ def main():
     root='/api/institutions/'+slug+'/'
     today=dt.datetime.now(ZoneInfo('Asia/Kolkata')).date()
     try:
-        qa.shell("from django.contrib.auth import get_user_model\nfrom django.db import transaction\nfrom campus.models import Institution, Membership\nwith transaction.atomic():\n    i=Institution.objects.create(slug="+repr(slug)+",name='Synthetic academic acceptance')\n    for role,a in "+repr(accounts)+".items():\n        u=get_user_model().objects.create_user(username=a['username'],password=a['password'])\n        Membership.objects.create(institution=i,user=u,role='faculty' if role=='other_faculty' else role)\n")
+        qa.shell("from django.contrib.auth import get_user_model\nfrom django.db import transaction\nfrom campus.models import Institution, Membership\nwith transaction.atomic():\n    i=Institution.objects.create(slug="+repr(slug)+",name='Synthetic academic acceptance')\n    for role,a in "+repr({r:a for r,a in accounts.items() if r!='student'})+".items():\n        u=get_user_model().objects.create_user(username=a['username'],password=a['password'])\n        Membership.objects.create(institution=i,user=u,role='faculty' if role=='other_faculty' else role)\n")
         for role, account in accounts.items():
+            if role=='student': continue
             c=qa.Client()
             qa.expect(c,'/api/csrf/',200,role+' CSRF')
             qa.expect(c,'/api/login/',200,role+' login',account)
             clients[role]=c
-        a,f,coe,s,v,p,other=[clients[r] for r in ('admin','faculty','coe','student','viewer','principal','other_faculty')]
+        a,f,coe,v,p,other=[clients[r] for r in ('admin','faculty','coe','viewer','principal','other_faculty')]
         def post(c,path,data,label,status=201):
             return qa.expect(c,root+path,status,label,data)
         def get(c,path,label,status=200):
@@ -35,8 +36,13 @@ def main():
         for sid in ('QA-ONE','QA-TWO'):
             post(a,'students/',{'student_id':sid,'name':sid,'email':sid.lower()+'@example.invalid','program':'QA Engineering','year':1,'status':'Pending'},'Create '+sid)
             post(a,'students/'+sid+'/admission/',{'status':'Active'},'Approve '+sid,200)
-        # Account provisioning currently has no admin HTTP endpoint; link only our isolated synthetic record.
-        qa.shell("from campus.models import Student\nfrom django.contrib.auth import get_user_model\ns=Student.objects.get(institution__slug="+repr(slug)+",student_id='QA-ONE')\ns.portal_user=get_user_model().objects.get(username="+repr(accounts['student']['username'])+")\ns.save(update_fields=['portal_user'])\n")
+        account=post(a,'accounts/',{'username':accounts['student']['username'],'role':'student','student_id':'QA-ONE'},'Provision student login through administrator API')
+        accounts['student']['password']=account['password']
+        s=qa.Client()
+        qa.expect(s,'/api/csrf/',200,'student CSRF')
+        qa.expect(s,'/api/login/',200,'student login',accounts['student'])
+        clients['student']=s
+        get(s,'accounts/','Student denied account management',403)
         masters=get(a,'academic-engine/','Read academic master choices')
         faculty=next(r['id'] for r in masters['faculty'] if r['user__username']==accounts['faculty']['username'])
         room=post(a,'academic-engine/room/',{'code':'QA-R1','capacity':10},'Create classroom')['id']
