@@ -4,8 +4,19 @@ No GCOEA or team demonstration records are modified.
 """
 import datetime as dt
 import secrets
+import base64
+import struct
+import zlib
 from zoneinfo import ZoneInfo
 import live_acceptance as qa
+
+def synthetic_png(value):
+    def chunk(kind,data):
+        return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
+    width,height=32,48
+    raw=b''.join(bytes([0])+bytes([value])*width*3 for _ in range(height))
+    image=bytes.fromhex('89504e470d0a1a0a')+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b'')
+    return base64.b64encode(image).decode()
 
 def main():
     tag=secrets.token_hex(5)
@@ -84,6 +95,33 @@ def main():
         post(coe,'examination/marks/',{'application':app,'marks':10},'Published marks locked',400)
         dashboard=get(p,'dashboard/','Principal dashboard')
         qa.check('Principal sees one published examination',dashboard['published_exams']==1)
+        scanexam=post(coe,'examination/create/',{**config,'title':'QA Scan Evaluation'},'Configure scan examination')['id']
+        q=post(coe,'evaluation/question/',{'exam':scanexam,'code':'Q1','maximum':100,'course_outcome':'CO1','bloom_level':3},'Create question plan')['id']
+        scanapp=post(s,'examination/apply/',{'exam':scanexam,'enrollment':e},'Apply for scan examination')['id']
+        post(coe,'examination/state/',{'exam':scanexam,'status':'closed'},'Close scan applications')
+        post(coe,'examination/marks/',{'application':scanapp,'marks':80},'Direct total marks blocked',400)
+        b=post(coe,'evaluation/assign/',{'application':scanapp,'examiner':faculty,'expected_pages':2},'Assign scan-enabled book')['id']
+        pages='evaluation/books/'+str(b)+'/pages/'
+        page=post(coe,pages,{'number':1,'image':synthetic_png(255)},'Upload synthetic scan')['id']
+        post(coe,pages,{'number':1,'image':synthetic_png(0)},'Duplicate page number blocked',400)
+        image_path=pages+str(page)+'/image/'
+        with f.opener.open(qa.BASE+root+image_path,timeout=20) as response:
+            qa.check('Private scan returns valid JPEG',response.status==200 and response.headers.get_content_type()=='image/jpeg' and response.read().startswith(bytes.fromhex('ffd8')))
+        get(other,image_path,'Unassigned faculty denied private page',404)
+        get(s,image_path,'Student denied unreleased scan',403)
+        ann=pages+str(page)+'/annotations/'
+        post(f,ann,{'x':3500,'y':6500,'note':'Synthetic evaluation note'},'Persist positioned note')
+        post(f,'evaluation/score/',{'evaluation':b,'question':q,'marks':84},'Save question marks')
+        post(f,'evaluation/submit/',{'evaluation':b},'Block incomplete scan submission',400)
+        post(coe,pages,{'number':2,'image':synthetic_png(0)},'Upload second page')
+        post(f,'evaluation/submit/',{'evaluation':b},'Submit complete scanned book')
+        post(f,ann,{'x':1000,'y':1000,'note':'Late edit'},'Block annotations after submission',400)
+        post(coe,'evaluation/review/',{'evaluation':b,'decision':'approved'},'Approve question total')
+        post(coe,'examination/state/',{'exam':scanexam,'status':'published'},'Publish scan exam result')
+        marks=get(s,'examination/','Read published scan result')['applications']
+        qa.check('Scan evaluation calculates 84/100',any(r['exam_id']==scanexam and r['marks']==84 and r['result']=='Pass' for r in marks))
+        notes=get(coe,ann,'Read preserved annotation')
+        qa.check('Annotation survives publication',len(notes)==1 and notes[0]['note']=='Synthetic evaluation note')
         qa.expect(a,'/api/institutions/gcoea-demo/academic-engine/',403,'Existing institution isolated')
         for role,c in clients.items():
             qa.expect(c,'/api/csrf/',200,role+' refresh CSRF')
