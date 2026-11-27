@@ -91,8 +91,9 @@ def main():
     a=clients["admin"]; adm=clients["admissions"]; fac=clients["faculty"]; fin=clients["finance"]; ward=clients["warden"]; pr=clients["principal"]; view=clients["viewer"]
     d=expect(a,root+"setup/departments/",201,"Create department",{"code":"QA","name":"QA Engineering"})
     p=expect(a,root+"setup/programs/",201,"Create program",{"code":"QA-BE","name":"QA Engineering","department":d["id"],"duration_years":4,"intake":60})
-    expect(a,root+"setup/courses/",201,"Create course",{"code":"QA101","name":"QA Course","program":p["id"],"semester":1,"credits":3})
-    expect(a,root+"setup/periods/",201,"Create academic period",{"code":"QA-2026","starts":"2026-07-01","ends":"2027-06-30"})
+    course=expect(a,root+"setup/courses/",201,"Create course",{"code":"QA101","name":"QA Course","program":p["id"],"semester":1,"credits":3})
+    day=datetime.datetime.now(ZoneInfo("Asia/Kolkata")).date()
+    period=expect(a,root+"setup/periods/",201,"Create academic period",{"code":"QA-2026","starts":str(day-datetime.timedelta(days=30)),"ends":str(day+datetime.timedelta(days=30))})
     student={"student_id":"QA-STUDENT","name":"Synthetic QA Student","email":"qa@example.invalid","program":"QA Engineering","year":1,"status":"Active"}
     expect(adm,root+"students/",201,"Create synthetic application",student)
     rows=expect(adm,root+"students/",200,"Retrieve saved application")
@@ -102,6 +103,13 @@ def main():
     check("Approved admission persisted",any(r["student_id"]=="QA-STUDENT" and r["status"]=="Active" for r in rows))
     today=datetime.datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
     entry={"student_id":"QA-STUDENT","day":today,"course":"QA101","present":True}
+    expect(fac,root+"operations/attendance/",403,"Unassigned legacy attendance denied",entry)
+    check("Unassigned faculty directory empty",expect(fac,root+"students/",200,"Scoped faculty directory")==[])
+    master=expect(a,root+"academic-engine/",200,"Read faculty choices")
+    member=next(r["id"] for r in master["faculty"] if r["user__username"]==accounts["faculty"]["username"])
+    offering=expect(a,root+"academic-engine/offering/",201,"Assign faculty to course",{"course":course["id"],"period":period["id"],"faculty":member,"batch":"QA"})["id"]
+    expect(a,root+"academic-engine/enrollment/",201,"Enroll assigned student",{"offering":offering,"student_id":"QA-STUDENT"})
+    check("Assigned faculty sees enrolled student",len(expect(fac,root+"students/",200,"Assigned faculty directory"))==1)
     expect(fac,root+"operations/attendance/",201,"Record attendance",entry)
     records=expect(fac,root+"operations/attendance/",200,"Retrieve attendance")
     check("Attendance persisted",any(r["student__student_id"]=="QA-STUDENT" and r["present"] is True for r in records))
@@ -118,6 +126,21 @@ def main():
     dash=expect(pr,root+"dashboard/",200,"Principal live dashboard")
     check("Principal totals reflect transactions",dash["students"]==1 and dash["active_students"]==1 and dash["allocated_beds"]==1 and dash["present_entries_today"]==1 and dash["hostel_checks_today"]==1 and Decimal(dash["fee_outstanding"])==Decimal("600"))
     check("Principal audit details restricted",dash["recent_activity"]==[])
+    expect(fin,root+"ledger/activate/",403,"Finance cannot activate ledger",{"confirmed":True})
+    expect(a,root+"ledger/activate/",201,"Activate opening receivables",{"confirmed":True})
+    ledger=expect(fin,root+"ledger/",200,"Read opening trial balance")
+    check("Opening receivables reconcile",ledger["receivable_reconciled"] and Decimal(ledger["fee_outstanding"])==Decimal("600") and Decimal(ledger["statement"]["income"])==0)
+    new=expect(fin,root+"operations/fees/",201,"Post new fee to ledger",{"student_id":"QA-STUDENT","period":"QA-NEXT","assessed":"500.00"})
+    import uuid
+    payload={"account":new["id"],"amount":"200.00","method":"bank","request_key":str(uuid.uuid4())}
+    receipt=expect(fin,root+"operations/receipts/",201,"Post new bank receipt",payload)
+    retry=expect(fin,root+"operations/receipts/",200,"Retry receipt safely",payload)
+    check("Same receipt reference on retry",retry["reference"]==receipt["reference"])
+    expect(fin,root+"operations/receipts/",400,"Reject conflicting receipt key",{**payload,"amount":"201.00"})
+    ledger=expect(fin,root+"ledger/",200,"Reconcile posted fee movements")
+    check("Ledger balanced and receivable INR 900",ledger["balanced"] and ledger["receivable_reconciled"] and Decimal(ledger["fee_outstanding"])==900)
+    expect(fac,root+"ledger/",403,"Faculty denied ledger")
+
     expect(pr,root+"students/QA-STUDENT/admission/",403,"Principal cannot alter admission",{"status":"On Hold"})
     expect(pr,root+"setup/departments/",403,"Principal cannot modify setup")
     expect(fac,root+"operations/fees/",403,"Faculty denied finance")

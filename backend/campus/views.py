@@ -55,7 +55,12 @@ class StudentList(generics.ListCreateAPIView):
             raise PermissionDenied()
         return member
     def get_queryset(self):
-        return Student.objects.filter(institution=self.membership().institution).order_by('student_id')
+        member=self.membership()
+        rows=Student.objects.filter(institution=member.institution)
+        if member.role=='faculty':
+            from .models import CourseEnrollment
+            rows=rows.filter(pk__in=CourseEnrollment.objects.filter(offering__faculty=member,offering__period__institution=member.institution,offering__course__program__department__institution=member.institution).values('student_id'))
+        return rows.order_by('student_id')
     def perform_create(self,serializer):
         member = self.membership()
         if member.role not in ('admin','admissions'):
