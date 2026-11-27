@@ -1,6 +1,6 @@
 """Relational academic and examination pilot. All mutations are tenant scoped."""
 from django.db import transaction, IntegrityError
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.decorators import api_view
@@ -196,8 +196,10 @@ def exam_action(request,slug,action):
             elif action=='state':
                 row=get(exams(m),d['exam'])
                 if d['status']=='closed' and row.status=='open':
+                    if row.questions.exists() and row.questions.aggregate(total=Sum('maximum'))['total']!=row.maximum: raise ValidationError('Question maximums must sum to exam maximum before closing.')
                     if any(not eligible(row,a.enrollment) for a in row.applications.select_related('enrollment__student')): raise ValidationError('One or more applications no longer meet eligibility. Review attendance before closing.')
                 elif d['status']=='published' and row.status=='closed':
+                    if row.questions.exists() and row.applications.exclude(evaluation__status='approved').exists(): raise ValidationError('All question-wise evaluations require controller approval.')
                     if row.day>timezone.localdate() or not row.applications.exists() or row.applications.filter(marks__isnull=True).exists(): raise ValidationError('Exam date or incomplete marks prevent publication.')
                 else: raise ValidationError('Invalid examination transition.')
                 row.status=d['status']
@@ -205,6 +207,7 @@ def exam_action(request,slug,action):
             else:
                 row=get(applications(m),d['application'])
                 if row.exam.status!='closed' or row.exam.day>timezone.localdate(): raise ValidationError('Marks require a closed application window and exam date reached.')
+                if row.exam.questions.exists(): raise ValidationError('Use question-wise evaluation for this examination.')
                 if d['marks']>row.exam.maximum: raise ValidationError('Marks exceed exam maximum.')
                 row.marks=d['marks']
                 row.save(update_fields=['marks'])
