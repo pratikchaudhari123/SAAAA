@@ -51,7 +51,7 @@ class StudentList(generics.ListCreateAPIView):
     serializer_class = StudentSerializer
     def membership(self):
         member = Membership.objects.filter(user=self.request.user,institution__slug=self.kwargs['slug']).first()
-        if member is None:
+        if member is None or member.role == 'student':
             raise PermissionDenied()
         return member
     def get_queryset(self):
