@@ -426,3 +426,54 @@ class LedgerLine(models.Model):
     credit=models.DecimalField(max_digits=16,decimal_places=2,default=0)
     class Meta:
         constraints=[models.CheckConstraint(condition=(models.Q(debit__gt=0,credit=0)|models.Q(credit__gt=0,debit=0)),name='ledger_line_one_side')]
+
+class CampusNotice(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    title=models.CharField(max_length=150)
+    body=models.TextField()
+    kind=models.CharField(max_length=20,choices=[('notice','Notice'),('memo','Memo'),('news','News'),('event','Event'),('task','Task')])
+    audience=models.CharField(max_length=30)
+    recipient=models.ForeignKey(Membership,on_delete=models.PROTECT,null=True,blank=True)
+    starts=models.DateTimeField()
+    ends=models.DateTimeField()
+    link=models.URLField(blank=True)
+    author=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    withdrawn=models.BooleanField(default=False)
+    created_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.CheckConstraint(condition=models.Q(ends__gt=models.F('starts')),name='valid_notice_window')]
+
+class NoticeAcknowledgment(models.Model):
+    notice=models.ForeignKey(CampusNotice,on_delete=models.PROTECT)
+    membership=models.ForeignKey(Membership,on_delete=models.PROTECT)
+    acknowledged_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['notice','membership'],name='unique_notice_ack')]
+
+class FeedbackSurvey(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    offering=models.ForeignKey(CourseOffering,on_delete=models.PROTECT,null=True,blank=True)
+    title=models.CharField(max_length=150)
+    kind=models.CharField(max_length=20,choices=[('academic','Academic'),('teaching','Teaching'),('non_teaching','Non-teaching'),('infrastructure','Infrastructure'),('exit','Exit')])
+    scale=models.CharField(max_length=10,choices=[('grade','Grade'),('marks','Marks')])
+    questions=models.JSONField()
+    opens=models.DateTimeField()
+    closes=models.DateTimeField()
+    min_attendance=models.PositiveSmallIntegerField(default=0)
+    min_fee_paid=models.PositiveSmallIntegerField(default=0)
+    created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    cancelled=models.BooleanField(default=False)
+    class Meta:
+        constraints=[models.CheckConstraint(condition=models.Q(closes__gt=models.F('opens'),min_attendance__lte=100,min_fee_paid__lte=100),name='valid_feedback_window')]
+
+class FeedbackInvite(models.Model):
+    survey=models.ForeignKey(FeedbackSurvey,on_delete=models.PROTECT,related_name='invites')
+    student=models.ForeignKey(Student,on_delete=models.PROTECT)
+    submitted_at=models.DateTimeField(null=True,blank=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['survey','student'],name='unique_feedback_invite')]
+
+class FeedbackResponse(models.Model):
+    survey=models.ForeignKey(FeedbackSurvey,on_delete=models.PROTECT,related_name='responses')
+    scores=models.JSONField()
+    submitted_at=models.DateTimeField(auto_now_add=True)
