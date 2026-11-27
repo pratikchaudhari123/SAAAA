@@ -70,3 +70,40 @@ class HostelCheck(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=['student','day'],name='unique_hostel_daily_student')]
+
+class Department(models.Model):
+    institution = models.ForeignKey(Institution,on_delete=models.PROTECT)
+    code = models.CharField(max_length=30)
+    name = models.CharField(max_length=150)
+    active = models.BooleanField(default=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['institution','code'],name='unique_department_code')]
+
+class AcademicProgram(models.Model):
+    department = models.ForeignKey(Department,on_delete=models.PROTECT)
+    code = models.CharField(max_length=30)
+    name = models.CharField(max_length=150)
+    duration_years = models.PositiveSmallIntegerField()
+    intake = models.PositiveIntegerField()
+    active = models.BooleanField(default=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['department','code'],name='unique_program_code')]
+
+class AcademicCourse(models.Model):
+    program = models.ForeignKey(AcademicProgram,on_delete=models.PROTECT)
+    code = models.CharField(max_length=30)
+    name = models.CharField(max_length=150)
+    semester = models.PositiveSmallIntegerField()
+    credits = models.PositiveSmallIntegerField()
+    active = models.BooleanField(default=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['program','code'],name='unique_course_code')]
+
+class AcademicPeriod(models.Model):
+    institution = models.ForeignKey(Institution,on_delete=models.PROTECT)
+    code = models.CharField(max_length=20)
+    starts = models.DateField()
+    ends = models.DateField()
+    active = models.BooleanField(default=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['institution','code'],name='unique_academic_period'),models.CheckConstraint(condition=models.Q(ends__gte=models.F('starts')),name='valid_academic_period')]
