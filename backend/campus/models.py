@@ -6,7 +6,7 @@ class Institution(models.Model):
 class Membership(models.Model):
     institution = models.ForeignKey(Institution,on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE)
-    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden')])
+    role = models.CharField(max_length=30,choices=[('admin','Administrator'),('admissions','Admission Officer'),('viewer','Read only'),('faculty','Faculty'),('finance','Finance Officer'),('warden','Hostel Warden'),('principal','Principal')])
     class Meta:
         constraints = [models.UniqueConstraint(fields=['institution','user'],name='unique_campus_member')]
 class Student(models.Model):
