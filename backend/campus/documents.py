@@ -25,7 +25,9 @@ class PolicyInput(serializers.Serializer):
     clearance_units=serializers.ListField(child=serializers.ChoiceField(choices=UNITS),max_length=4,default=list)
     def validate(self,d):
         import re
-        if set(re.findall(r'\{([^{}]+)\}',d['text']))-set(TOKENS): raise serializers.ValidationError('Unknown template token.')
+        tokens=set(re.findall(r'\{([^{}]+)\}',d['text']))
+        if tokens-set(TOKENS): raise serializers.ValidationError('Unknown template token.')
+        if d['kind']!='fee_statement' and tokens.intersection({'fee_assessed','fee_paid','fee_outstanding'}): raise serializers.ValidationError('Financial amount placeholders are restricted to fee statements.')
         if len(set(d['clearance_units']))!=len(d['clearance_units']): raise serializers.ValidationError('Duplicate clearance unit.')
         if d['kind']=='clearance' and not d['clearance_units']: raise serializers.ValidationError('Clearance requires at least one unit.')
         return d
@@ -60,8 +62,8 @@ def permitted_student(m):
     return s
 def policy_data(p):
     return {'code':p.code,'kind':p.kind,'title':p.title,'text':p.text,'allow_duplicate':p.allow_duplicate,'clearance_units':p.clearance_units}
-def serialize(r,full=False):
-    data={'id':r.pk,'policy_id':r.policy_id,'title':r.policy_snapshot['title'],'kind':r.policy_snapshot['kind'],'copy_kind':r.copy_kind,'status':r.status,'reason':r.reason,'review_note':r.review_note,'created_at':r.created_at,'required_units':r.policy_snapshot['clearance_units'],'clearances':list(r.clearances.values('unit','cleared','note','updated_at')),'serial':str(r.serial) if r.serial else None,'issued':r.issued_snapshot if r.status=='issued' else None}
+def serialize(r,full=False,show_document=True):
+    data={'id':r.pk,'policy_id':r.policy_id,'title':r.policy_snapshot['title'],'kind':r.policy_snapshot['kind'],'copy_kind':r.copy_kind,'status':r.status,'reason':r.reason,'review_note':r.review_note,'created_at':r.created_at,'required_units':r.policy_snapshot['clearance_units'],'clearances':list(r.clearances.values('unit','cleared','note','updated_at')),'serial':str(r.serial) if r.serial else None,'issued':r.issued_snapshot if r.status=='issued' and show_document else None}
     if full: data.update({'student_id':r.student.student_id,'name':r.student.name,'program':r.student.program})
     return data
 @api_view(['GET'])
@@ -80,7 +82,7 @@ def workspace(request,slug):
     policies=CertificatePolicy.objects.filter(institution=m.institution)
     if personal: policies=policies.filter(active=True)
     if not personal and not caps: policies=policies.none()
-    data={'capabilities':sorted(caps),'policies':[{'id':p.pk,**policy_data(p)} for p in policies.order_by('code')],'requests':[serialize(r,not personal) for r in qs.select_related('student').order_by('-pk')],'tokens':TOKENS,'units':UNITS,'kinds':KINDS}
+    data={'capabilities':sorted(caps),'policies':[{'id':p.pk,**policy_data(p)} for p in policies.order_by('code')],'requests':[serialize(r,not personal,personal or 'document.issue' in caps) for r in qs.select_related('student').order_by('-pk')],'tokens':TOKENS,'units':UNITS,'kinds':KINDS}
     response=Response(data);response['Cache-Control']='private, no-store';return response
 
 @api_view(['POST'])
@@ -131,7 +133,7 @@ def action(request,slug,action):
                 if 'hostel' in units and row.policy.kind=='clearance' and HostelBed.objects.filter(institution=m.institution,student=s).exists(): raise ValidationError('Hostel allocation changed.')
                 if row.copy_kind=='duplicate' and (not row.original_id or row.original.status!='issued'): raise ValidationError('Original no longer valid.')
                 row.serial=uuid4();row.issued_at=timezone.now();row.issued_by=m.user
-                values={'student_name':s.name,'student_id':s.student_id,'program':s.program,'year':str(s.year),'institution':m.institution.name,'issue_date':str(timezone.localdate()),'serial':str(row.serial),'copy_kind':row.copy_kind,**amounts}
+                values={'student_name':s.name,'student_id':s.student_id,'program':s.program,'year':str(s.year),'institution':m.institution.name,'issue_date':str(timezone.localdate()),'serial':str(row.serial),'copy_kind':row.copy_kind,**(amounts if row.policy.kind=='fee_statement' else {})}
                 import re
                 text=re.sub(r'\{([^{}]+)\}',lambda match: values.get(match.group(1),match.group(0)),row.policy_snapshot['text'])
                 row.issued_snapshot={**values,'title':row.policy_snapshot['title'],'text':text,'approval_reference':d['note'],'original_serial':str(row.original.serial) if row.original_id else None}

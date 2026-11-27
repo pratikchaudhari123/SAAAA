@@ -80,3 +80,23 @@ class DocumentTests(TestCase):
         self.post('documents/review',{**review,'id':d},400)
         self.login('foreign')
         self.assertEqual(self.client.get(self.root+'documents/').status_code,403)
+
+    def test_delegated_issue_is_enforced_at_mutation(self):
+        policy=self.post('documents/policy',{'code':'ID1','kind':'student_id','title':'ID','text':'Student {student_id}'})['id']
+        role=self.post('permissions/role',{'name':'Temporary issuer','permissions':['document.issue']})['id']
+        self.login('student')
+        req=self.post('documents/apply',{'policy':policy,'copy_kind':'original','reason':'Synthetic'})['id']
+        self.login('faculty')
+        review={'id':req,'decision':'issued','note':'Synthetic approval','confirmed':True}
+        self.post('documents/review',review,403)
+        self.login('admin')
+        grant=self.post('permissions/grant',{'role':role,'membership':self.members['faculty'].pk,'starts':(self.now-timedelta(minutes=1)).isoformat(),'ends':(self.now+timedelta(minutes=20)).isoformat(),'reason':'Temporary duty'})['id']
+        self.login('faculty')
+        self.post('documents/review',review)
+        self.login('admin')
+        self.post('permissions/revoke',{'id':grant})
+        self.login('faculty')
+        self.post('documents/review',{'id':req,'decision':'revoked','note':'No authority'},403)
+        self.login('student')
+        self.assertEqual(self.view()['requests'][0]['status'],'issued')
+        self.assertNotIn('fee_assessed',self.view()['requests'][0]['issued'])
