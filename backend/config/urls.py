@@ -12,3 +12,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/operations/'+name+'/',getattr
 
 from campus import platform
 urlpatterns += [path('api/institutions/<slug:slug>/setup/<str:kind>/',platform.master),path('api/institutions/<slug:slug>/setup/<str:kind>/<int:pk>/status/',platform.master_status),path('api/institutions/<slug:slug>/dashboard/',platform.dashboard)]
+
+from campus import student_portal
+urlpatterns += [path('api/institutions/<slug:slug>/my-campus/',student_portal.my_campus)]
