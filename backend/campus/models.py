@@ -513,3 +513,60 @@ class AdmissionDocument(models.Model):
     uploaded_at=models.DateTimeField(auto_now_add=True)
     class Meta:
         constraints=[models.UniqueConstraint(fields=['application','kind'],name='unique_admission_document')]
+
+class InstitutionalRole(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    name=models.CharField(max_length=100)
+    parent=models.ForeignKey('self',on_delete=models.PROTECT,null=True,blank=True)
+    permissions=models.JSONField(default=list)
+    created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['institution','name'],name='unique_institutional_role')]
+
+class InstitutionalRoleGrant(models.Model):
+    role=models.ForeignKey(InstitutionalRole,on_delete=models.PROTECT)
+    membership=models.ForeignKey(Membership,on_delete=models.PROTECT)
+    starts=models.DateTimeField()
+    ends=models.DateTimeField(null=True,blank=True)
+    revoked_at=models.DateTimeField(null=True,blank=True)
+    reason=models.CharField(max_length=300)
+    granted_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    class Meta:
+        constraints=[models.CheckConstraint(condition=models.Q(ends__isnull=True)|models.Q(ends__gt=models.F('starts')),name='valid_role_grant_window')]
+
+class CertificatePolicy(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    code=models.CharField(max_length=30)
+    kind=models.CharField(max_length=30,choices=[('bonafide','Bonafide'),('character','Character'),('fee_statement','Fee statement'),('clearance','Clearance'),('student_id','Student ID')])
+    title=models.CharField(max_length=150)
+    text=models.TextField()
+    allow_duplicate=models.BooleanField(default=False)
+    clearance_units=models.JSONField(default=list)
+    active=models.BooleanField(default=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['institution','code'],name='unique_certificate_policy')]
+
+class CertificateRequest(models.Model):
+    policy=models.ForeignKey(CertificatePolicy,on_delete=models.PROTECT)
+    student=models.ForeignKey(Student,on_delete=models.PROTECT)
+    copy_kind=models.CharField(max_length=10,choices=[('original','Original'),('duplicate','Duplicate')])
+    original=models.ForeignKey('self',on_delete=models.PROTECT,null=True,blank=True)
+    reason=models.CharField(max_length=300)
+    status=models.CharField(max_length=20,choices=[('pending','Pending'),('issued','Issued'),('rejected','Rejected'),('revoked','Revoked')],default='pending')
+    policy_snapshot=models.JSONField(default=dict)
+    issued_snapshot=models.JSONField(default=dict)
+    serial=models.UUIDField(null=True,unique=True,editable=False)
+    issued_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,null=True,blank=True)
+    issued_at=models.DateTimeField(null=True,blank=True)
+    review_note=models.CharField(max_length=500,blank=True)
+    created_at=models.DateTimeField(auto_now_add=True)
+
+class CertificateClearance(models.Model):
+    request=models.ForeignKey(CertificateRequest,on_delete=models.PROTECT,related_name='clearances')
+    unit=models.CharField(max_length=20)
+    cleared=models.BooleanField()
+    note=models.CharField(max_length=300)
+    actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    updated_at=models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['request','unit'],name='unique_certificate_clearance')]

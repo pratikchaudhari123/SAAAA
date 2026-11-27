@@ -52,3 +52,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/communications/',communicatio
 
 from campus import registration
 urlpatterns += [path('api/institutions/<slug:slug>/registration/',registration.workspace),path('api/institutions/<slug:slug>/registration/<str:action>/',registration.action),path('api/institutions/<slug:slug>/registration/documents/<int:pk>/',registration.document_view)]
+
+from campus import permissions, documents
+urlpatterns += [path('api/institutions/<slug:slug>/permissions/',permissions.workspace),path('api/institutions/<slug:slug>/permissions/<str:action>/',permissions.action),path('api/institutions/<slug:slug>/documents/',documents.workspace),path('api/institutions/<slug:slug>/documents/<str:action>/',documents.action)]
