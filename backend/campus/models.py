@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.conf import settings
 class Institution(models.Model):
@@ -196,3 +197,32 @@ class ExamApplication(models.Model):
     created_at=models.DateTimeField(auto_now_add=True)
     class Meta:
         constraints=[models.UniqueConstraint(fields=['exam','enrollment'],name='unique_exam_application')]
+
+class ExamQuestion(models.Model):
+    exam=models.ForeignKey(CourseExam,on_delete=models.PROTECT,related_name='questions')
+    code=models.CharField(max_length=20)
+    maximum=models.PositiveIntegerField()
+    course_outcome=models.CharField(max_length=40,blank=True)
+    bloom_level=models.PositiveSmallIntegerField(null=True,blank=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['exam','code'],name='unique_exam_question'),models.CheckConstraint(condition=models.Q(maximum__gt=0),name='positive_question_maximum')]
+
+class BookEvaluation(models.Model):
+    application=models.OneToOneField(ExamApplication,on_delete=models.PROTECT,related_name='evaluation')
+    book_ref=models.UUIDField(default=uuid.uuid4,unique=True,editable=False)
+    examiner=models.ForeignKey(Membership,on_delete=models.PROTECT)
+    status=models.CharField(max_length=20,choices=[('assigned','Assigned'),('submitted','Submitted'),('returned','Returned'),('approved','Approved')],default='assigned')
+    assigned_at=models.DateTimeField(auto_now_add=True)
+    submitted_at=models.DateTimeField(null=True,blank=True)
+    reviewed_at=models.DateTimeField(null=True,blank=True)
+    reviewed_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,null=True,blank=True)
+    review_note=models.CharField(max_length=300,blank=True)
+
+class QuestionScore(models.Model):
+    evaluation=models.ForeignKey(BookEvaluation,on_delete=models.PROTECT,related_name='scores')
+    question=models.ForeignKey(ExamQuestion,on_delete=models.PROTECT)
+    marks=models.PositiveIntegerField()
+    note=models.CharField(max_length=300,blank=True)
+    updated_at=models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['evaluation','question'],name='unique_question_score')]
