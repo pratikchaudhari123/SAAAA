@@ -66,3 +66,6 @@ urlpatterns += [path('api/institutions/<slug:slug>/support/',support.workspace),
 
 from campus import provider_integrations,security_audit
 urlpatterns += [path('api/institutions/<slug:slug>/provider-integrations/',provider_integrations.workspace),path('api/institutions/<slug:slug>/provider-integrations/<str:action>/',provider_integrations.action),path('api/institutions/<slug:slug>/security-audit/',security_audit.workspace)]
+
+from campus import nep
+urlpatterns += [path('api/institutions/<slug:slug>/nep/',nep.workspace),path('api/institutions/<slug:slug>/nep/<str:action>/',nep.action)]

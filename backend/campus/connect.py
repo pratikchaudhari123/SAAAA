@@ -165,11 +165,26 @@ def parse_students(raw,institution):
     pending=[r for r in records if r['student_id'] not in existing]
     return pending,{'valid_rows':len(records),'new_rows':len(pending),'existing_rows':len(existing),'errors':errors}
 
+def mapped_students(raw,mapping):
+    if mapping is None:return raw
+    if not isinstance(raw,str) or len(raw.encode('utf-8'))>512000:raise ValidationError('CSV must be at most 500 KB.')
+    if not isinstance(mapping,dict) or set(mapping)!=set(HEADERS) or any(not isinstance(v,str) or not v or len(v)>150 for v in mapping.values()) or len(set(mapping.values()))!=len(HEADERS):raise ValidationError('Map each required field to a distinct source header.')
+    try:
+        reader=csv.DictReader(io.StringIO(raw.lstrip('\ufeff')),strict=True)
+        if not reader.fieldnames or len(set(reader.fieldnames))!=len(reader.fieldnames) or not set(mapping.values()).issubset(reader.fieldnames):raise ValidationError('Source headers are missing or duplicated.')
+        output=io.StringIO();writer=csv.DictWriter(output,fieldnames=HEADERS);writer.writeheader()
+        for index,row in enumerate(reader,2):
+            if index>501:raise ValidationError('Maximum 500 rows per batch.')
+            if None in row or any(v is None for v in row.values()):raise ValidationError('Incorrect number of fields at row '+str(index))
+            writer.writerow({k:row[v] for k,v in mapping.items()})
+        return output.getvalue()
+    except csv.Error:raise ValidationError('Invalid CSV format.')
+
 @api_view(['POST'])
 def student_import(request,slug):
     m=admin(request,slug)
     mode=request.data.get('mode')
-    raw=request.data.get('csv')
+    raw=mapped_students(request.data.get('csv'),request.data.get('mapping'))
     if mode not in ('preview','apply'):
         raise ValidationError('Select preview or apply.')
     if mode=='preview':

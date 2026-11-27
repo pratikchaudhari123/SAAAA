@@ -684,3 +684,17 @@ class SupportEscalation(models.Model):
     created_at=models.DateTimeField(auto_now_add=True)
     class Meta:
         constraints=[models.UniqueConstraint(fields=['ticket','kind'],name='unique_support_escalation')]
+
+class CreditRecognition(models.Model):
+    student=models.ForeignKey(Student,on_delete=models.PROTECT)
+    course=models.ForeignKey(AcademicCourse,on_delete=models.PROTECT)
+    source_institution=models.CharField(max_length=200)
+    source_reference=models.CharField(max_length=100)
+    evidence_url=models.URLField(blank=True)
+    credits=models.PositiveSmallIntegerField()
+    status=models.CharField(max_length=20,choices=[('pending','Pending'),('approved','Approved'),('rejected','Rejected')],default='pending')
+    review_note=models.CharField(max_length=500,blank=True)
+    reviewed_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,null=True,blank=True)
+    created_at=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['student','source_reference'],name='unique_credit_source_reference'),models.CheckConstraint(condition=models.Q(credits__gt=0),name='positive_recognition_credits')]
