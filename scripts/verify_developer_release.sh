@@ -55,6 +55,7 @@ python3 scripts/live_acceptance.py
 python3 scripts/connect_acceptance.py
 python3 scripts/academic_acceptance.py
 python3 scripts/career_acceptance.py
+python3 scripts/document_acceptance.py
 echo "===== MIGRATION HISTORY ====="
 dc exec -T api python manage.py showmigrations campus </dev/null
 git status --short -- backend/campus/migrations
