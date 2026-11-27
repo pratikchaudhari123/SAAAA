@@ -597,3 +597,55 @@ class LearningAttachment(models.Model):
     sha256=models.CharField(max_length=64)
     uploaded_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
     uploaded_at=models.DateTimeField(auto_now_add=True)
+
+class SupportTicket(models.Model):
+    institution=models.ForeignKey(Institution,on_delete=models.PROTECT)
+    requester=models.ForeignKey(Membership,on_delete=models.PROTECT,related_name='support_requests')
+    assignee=models.ForeignKey(Membership,on_delete=models.PROTECT,null=True,blank=True,related_name='support_assignments')
+    reference=models.UUIDField(default=uuid.uuid4,unique=True,editable=False)
+    title=models.CharField(max_length=150)
+    description=models.TextField()
+    category=models.CharField(max_length=20,choices=[('query','Query'),('incident','Incident'),('change','Change request')])
+    status=models.CharField(max_length=20,choices=[('open','Open'),('assigned','Assigned'),('resolved','Resolved'),('closed','Closed')],default='open')
+    response_due=models.DateTimeField()
+    resolution_due=models.DateTimeField()
+    responded_at=models.DateTimeField(null=True,blank=True)
+    resolved_at=models.DateTimeField(null=True,blank=True)
+    created_at=models.DateTimeField(auto_now_add=True)
+
+class SupportTicketEvent(models.Model):
+    ticket=models.ForeignKey(SupportTicket,on_delete=models.PROTECT,related_name='events')
+    actor=models.ForeignKey(Membership,on_delete=models.PROTECT)
+    action=models.CharField(max_length=20)
+    note=models.TextField()
+    created_at=models.DateTimeField(auto_now_add=True)
+
+class AccreditationEvidence(models.Model):
+    period=models.ForeignKey(AcademicPeriod,on_delete=models.PROTECT)
+    framework=models.CharField(max_length=10,choices=[('NBA','NBA'),('NAAC','NAAC'),('NIRF','NIRF')])
+    criterion=models.CharField(max_length=100)
+    title=models.CharField(max_length=150)
+    description=models.TextField()
+    url=models.URLField(blank=True)
+    status=models.CharField(max_length=15,choices=[('draft','Draft'),('reviewed','Reviewed')],default='draft')
+    created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    reviewed_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,null=True,blank=True,related_name='reviewed_accreditation_evidence')
+    created_at=models.DateTimeField(auto_now_add=True)
+
+class ExaminationSchedule(models.Model):
+    exam=models.OneToOneField(CourseExam,on_delete=models.PROTECT,related_name='schedule')
+    starts=models.DateTimeField()
+    ends=models.DateTimeField()
+    released_at=models.DateTimeField(null=True,blank=True)
+    created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    class Meta:
+        constraints=[models.CheckConstraint(condition=models.Q(ends__gt=models.F('starts')),name='valid_examination_schedule_times')]
+
+class ExaminationSeat(models.Model):
+    schedule=models.ForeignKey(ExaminationSchedule,on_delete=models.PROTECT,related_name='seats')
+    application=models.OneToOneField(ExamApplication,on_delete=models.PROTECT)
+    room=models.ForeignKey(Classroom,on_delete=models.PROTECT)
+    seat_number=models.PositiveIntegerField()
+    serial=models.UUIDField(default=uuid.uuid4,unique=True,editable=False)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['schedule','room','seat_number'],name='unique_examination_seat'),models.CheckConstraint(condition=models.Q(seat_number__gt=0),name='positive_examination_seat')]

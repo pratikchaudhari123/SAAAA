@@ -60,3 +60,6 @@ from campus import timetable
 urlpatterns += [path('api/institutions/<slug:slug>/timetable/',timetable.workspace),path('api/institutions/<slug:slug>/timetable/<str:action>/',timetable.action)]
 
 urlpatterns += [path('api/institutions/<slug:slug>/learning/attachments/<int:pk>/',learning.download)]
+
+from campus import support, accreditation, exam_preparation
+urlpatterns += [path('api/institutions/<slug:slug>/support/',support.workspace),path('api/institutions/<slug:slug>/support/<str:action>/',support.action),path('api/institutions/<slug:slug>/accreditation/',accreditation.workspace),path('api/institutions/<slug:slug>/accreditation/<str:action>/',accreditation.action),path('api/institutions/<slug:slug>/exam-preparation/',exam_preparation.workspace),path('api/institutions/<slug:slug>/exam-preparation/<str:action>/',exam_preparation.action)]
